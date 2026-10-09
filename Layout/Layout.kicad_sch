@@ -51,48 +51,6 @@
 		)
 	)
 	(sheet
-		(at 46.99 119.38)
-		(size 41.91 24.13)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(stroke
-			(width 0.1524)
-			(type solid)
-		)
-		(fill
-			(color 0 0 0 0.0000)
-		)
-		(uuid "168b67d5-c67a-44e2-b1eb-8af8b3526efa")
-		(property "Sheetname" "Analog"
-			(at 46.99 118.6684 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left bottom)
-			)
-		)
-		(property "Sheetfile" "Sensor.kicad_sch"
-			(at 46.99 144.0946 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left top)
-			)
-		)
-		(instances
-			(project "Layout"
-				(path "/cdb7c10d-ec58-4b12-af63-2fb6474199a1"
-					(page "4")
-				)
-			)
-		)
-	)
-	(sheet
 		(at 107.95 83.82)
 		(size 44.45 22.86)
 		(exclude_from_sim no)
