@@ -613,18 +613,6 @@
     [
       "cdb7c10d-ec58-4b12-af63-2fb6474199a1",
       "Root"
-    ],
-    [
-      "03e04924-2d21-428c-879d-d18f20397a6a",
-      "Powersupply"
-    ],
-    [
-      "35178c6e-1929-4fe9-aa30-ff11c0c96d44",
-      "Microcontroller"
-    ],
-    [
-      "168b67d5-c67a-44e2-b1eb-8af8b3526efa",
-      "Analog"
     ]
   ],
   "text_variables": {}
