@@ -1,0 +1,11 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "B2B-PH-K-S_LF__SN_")(type "KiCad")(uri "${KIPRJMOD}/Librarys/B2B-PH-K-S_LF__SN_/KiCad/B2B-PH-K-S_LF__SN_.kicad_sym")(options "")(descr ""))
+  (lib (name "2026-10-10_13-37-23")(type "KiCad")(uri "${KIPRJMOD}/Librarys/InstAmp/KiCADv6/2026-10-10_13-37-23.kicad_sym")(options "")(descr ""))
+  (lib (name "2026-10-10_22-11-14")(type "KiCad")(uri "${KIPRJMOD}/Librarys/Mosfet/KiCADv6/2026-10-10_22-11-14.kicad_sym")(options "")(descr ""))
+  (lib (name "RLD65NZN5-00A")(type "KiCad")(uri "${KIPRJMOD}/Librarys/Laser/RLD65NZN5-00A/KiCad/RLD65NZN5-00A.kicad_sym")(options "")(descr ""))
+  (lib (name "MAX4231AUT+T")(type "KiCad")(uri "${KIPRJMOD}/Librarys/OpAmp/MAX4231AUT+T/KiCad/MAX4231AUT+T.kicad_sym")(options "")(descr ""))
+  (lib (name "SG-210STF_48_0000ML5")(type "KiCad")(uri "${KIPRJMOD}/Librarys/Oszillator/SG-210STF_48.0000ML5/KiCad/SG-210STF_48_0000ML5.kicad_sym")(options "")(descr ""))
+  (lib (name "VL53L4CDV0DH_1")(type "KiCad")(uri "${KIPRJMOD}/Librarys/LIB_OPT3101RHFR/VL53L4CDV0DH1/VL53L4CDV0DH_1/KiCad/VL53L4CDV0DH_1.kicad_sym")(options "")(descr ""))
+  (lib (name "STM32F042G4U6")(type "KiCad")(uri "${KIPRJMOD}/Librarys/uC/STM32F042G4U6/KiCad/STM32F042G4U6.kicad_sym")(options "")(descr ""))
+)

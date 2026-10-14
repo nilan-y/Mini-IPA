@@ -1,4 +1,4 @@
-26636400573258914
+26648942674534797
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -13,6 +13,13 @@ audio belton reverb
 0
 7
 7
+B2B_PH_K_S
+SHDR2W50P0X200_1X2_590X450X600P
+B2B-PH-K-S(LF)(SN)
+Connector
+0
+2
+2
 Battery
 BatteryClip_Keystone_54_D16-19mm
 Battery clip for batteries with a diameter between 16-19 mm: https://www.keyelco.com/product.cfm/product_id/826
@@ -70552,6 +70559,20 @@ Yellow 5381 Series LED
 0
 2
 2
+Laser
+Laser_Warnschild
+
+
+0
+0
+0
+Laser
+RLD65NZN500A
+RLD65NZN5-00A-6
+Diode
+0
+3
+3
 Module
 A20_OLINUXINO_LIME2
 A20 Olinuxino LIME2, 1.2GHz, 512-1024MB RAM, Micro-SD, NAND or eMMC, 1000Mbit Ethernet
@@ -73485,6 +73506,13 @@ net tie
 0
 4
 4
+OpAmp
+SOT95P280X145-6N
+6 SOT23-6
+Integrated Circuit
+0
+6
+6
 OptoDevice
 ADNS-9800
 Laser Gaming Sensor ADNS-9800
@@ -74693,6 +74721,13 @@ Oscillator
 Oscillator_SeikoEpson_SG-8002DC
 8-lead dip package, row spacing 7.62 mm (300 mils)
 DIL DIP PDIP 2.54mm 7.62mm 300mil
+0
+4
+4
+Oszi
+SG210STF480000ML5
+SG-210STF 48.0000ML5-2
+Crystal or Oscillator
 0
 4
 4
@@ -105475,6 +105510,13 @@ igbt diode module
 0
 25
 25
+VL53L4CDV0DH/1
+VL53L4CDV0DH1
+Optical LGA12
+Integrated Circuit
+0
+13
+13
 Valve
 Valve_ECC-83-1
 Valve ECC-83-1 round pins
@@ -106259,3 +106301,10 @@ Varistor VF
 0
 2
 2
+uC
+uC_Footprint
+QFN, 28 Pin (http://www.st.com/resource/en/datasheet/stm32f031k6.pdf#page=90), generated with kicad-footprint-generator ipc_noLead_generator.py
+QFN NoLead
+0
+28
+28
