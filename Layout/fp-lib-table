@@ -1,6 +1,0 @@
-(fp_lib_table
-  (version 7)
-  (lib (name "KiCad")(type "KiCad")(uri "${KIPRJMOD}/Librarys/uC/STM32F042G4U6/KiCad.pretty")(options "")(descr ""))
-  (lib (name "uC")(type "KiCad")(uri "${KIPRJMOD}/Librarys/uC.pretty")(options "")(descr ""))
-  (lib (name "STM32F042G4U6")(type "KiCad")(uri "${KIPRJMOD}/Librarys/uC/STM32F042G4U6.pretty")(options "")(descr ""))
-)

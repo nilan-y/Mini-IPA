@@ -1,4 +1,4 @@
-26648942674534797
+26650734827468847
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -93519,6 +93519,13 @@ Potentiometer vertical vishay
 0
 3
 3
+Project_Lib
+USB_Micro-B_Amphenol_10118193-0001LF_Horizontal
+USB Micro-B receptacle, horizontal, SMD, 10118193, with flange, https://cdn.amphenol-icc.com/media/wysiwyg/files/drawing/10118193.pdf
+USB Micro-B horizontal SMD
+0
+11
+6
 RF
 Skyworks_SKY13575_639LF
 http://www.skyworksinc.com/uploads/documents/SKY13575_639LF_203270D.pdf
