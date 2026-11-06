@@ -1,7 +1,10 @@
 #include "usb_commands.h"
-#include "main.h"
 
 /* Single producer (USB interrupt), single consumer (main loop).
+ * Only the producer writes queue_head; only the consumer writes queue_tail.
+ * Shared accesses are volatile and byte-sized (atomic on STM32F042).
+ * Publish each byte before head, and release each slot after reading it.
+ * This lets the USB interrupt preempt Read without masking interrupts.
  * Up to 15 commands can wait; when full, the newest command is discarded.
  */
 #define COMMAND_QUEUE_SIZE 16U
@@ -56,17 +59,12 @@ void USB_Commands_Receive(const uint8_t *data, uint32_t length)
 
 uint8_t USB_Commands_Read(uint8_t *command)
 {
-  uint8_t available = 0U;
-  uint32_t primask = __get_PRIMASK();
-
-  /* Keep the queue read atomic, but run the command with interrupts enabled. */
-  __disable_irq();
-  if (queue_tail != queue_head)
+  if (queue_tail == queue_head)
   {
-    *command = command_queue[queue_tail];
-    queue_tail = (uint8_t)((queue_tail + 1U) % COMMAND_QUEUE_SIZE);
-    available = 1U;
+    return 0U;
   }
-  __set_PRIMASK(primask);
-  return available;
+
+  *command = command_queue[queue_tail];
+  queue_tail = (uint8_t)((queue_tail + 1U) % COMMAND_QUEUE_SIZE);
+  return 1U;
 }

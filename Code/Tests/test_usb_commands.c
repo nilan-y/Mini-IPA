@@ -4,8 +4,6 @@
 #include <string.h>
 #include "usb_commands.h"
 
-uint32_t test_primask;
-
 static void receive(const char *text)
 {
   USB_Commands_Receive((const uint8_t *)text, (uint32_t)strlen(text));
@@ -85,15 +83,6 @@ int main(void)
   expect_empty();
   receive("10\n");
   expect(10U);
-
-  /* Read must preserve the caller's interrupt state, including on empty queue. */
-  assert(test_primask == 0U);
-  test_primask = 1U;
-  receive("2\n");
-  expect(2U);
-  assert(test_primask == 1U);
-  expect_empty();
-  assert(test_primask == 1U);
 
   puts("USB command tests passed");
   return 0;

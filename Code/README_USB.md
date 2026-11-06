@@ -6,6 +6,27 @@ ersetzen. `ExecuteUsbCommand()` ordnet jede empfangene Zahl dem passenden
 Platzhalter zu. Die Funktionen laufen in der Hauptschleife, ausserhalb des
 USB-Interrupts. Lange blockierende Funktionen verzoegern weitere Befehle.
 
+## HAL und CubeMX
+
+Die vorhandene CubeMX-Konfiguration fuer Pins, Clock und Peripherie bleibt
+erhalten. `Code.ioc`, `SystemClock_Config()`, `MX_GPIO_Init()` und die
+anderen generierten Initialisierungsfunktionen wurden nicht geaendert.
+
+Der USB-Empfang verwendet den vorhandenen ST-Stack:
+`HAL_PCD_IRQHandler()` verarbeitet den USB-Interrupt. Die USB-Device-
+Middleware ruft anschliessend `CDC_Receive_FS()` auf. Dort werden die Bytes
+ausgewertet und der naechste Empfang mit `USBD_CDC_SetRxBuffer()` und
+`USBD_CDC_ReceivePacket()` aktiviert. Diese CDC-Funktionen gehoeren zur
+ST-USB-Device-Middleware und verwenden darunter die HAL-PCD-Treiber.
+
+Die HAL kennt die Bedeutung der UI-Zahlen nicht. Deshalb sind die
+Zeilenauswertung und die Zuordnung zu `ButtonN_Action()` Anwendungscode.
+Der kleine Puffer uebergibt die Befehle an die Hauptschleife, damit spaetere
+Funktionen den USB-Interrupt nicht blockieren. Er benoetigt keine globale
+Interrupt-Sperre: Nur der USB-Interrupt schreibt den Schreibindex, nur die
+Hauptschleife den Leseindex. Die gemeinsamen Zugriffe sind volatile und
+byteweise; sie sind auf diesem STM32F042 atomar.
+
 ## Sendeformat der UI
 
 Das Format wurde anhand des bereitgestellten Python-Codes bestaetigt:
@@ -41,7 +62,7 @@ Der Parser laesst sich ohne Hardware mit GCC testen (aus dem Repo-Stamm):
 
 ```sh
 mkdir -p work
-gcc -std=c11 -Wall -Wextra -Werror -ICode/Tests/stubs -ICode/Core/Inc \
+gcc -std=c11 -Wall -Wextra -Werror -ICode/Core/Inc \
   Code/Core/Src/usb_commands.c Code/Tests/test_usb_commands.c \
   -o work/test_usb_commands
 ./work/test_usb_commands
