@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "usb_commands.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,7 +55,17 @@ static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void ExecuteUsbCommand(uint8_t command);
+static void Button1_Action(void);
+static void Button2_Action(void);
+static void Button3_Action(void);
+static void Button4_Action(void);
+static void Button5_Action(void);
+static void Button6_Action(void);
+static void Button7_Action(void);
+static void Button8_Action(void);
+static void Button9_Action(void);
+static void Button10_Action(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -106,6 +116,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    uint8_t command;
+    if (USB_Commands_Read(&command) != 0U)
+    {
+      ExecuteUsbCommand(command);
+    }
   }
   /* USER CODE END 3 */
 }
@@ -353,7 +368,74 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* Called from the main loop, outside the USB interrupt. */
+static void ExecuteUsbCommand(uint8_t command)
+{
+  switch (command)
+  {
+    case 1U:  Button1_Action();  break;
+    case 2U:  Button2_Action();  break;
+    case 3U:  Button3_Action();  break;
+    case 4U:  Button4_Action();  break;
+    case 5U:  Button5_Action();  break;
+    case 6U:  Button6_Action();  break;
+    case 7U:  Button7_Action();  break;
+    case 8U:  Button8_Action();  break;
+    case 9U:  Button9_Action();  break;
+    case 10U: Button10_Action(); break;
+    default: break;
+  }
+}
 
+static void Button1_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 1 hier implementieren. */
+}
+
+static void Button2_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 2 hier implementieren. */
+}
+
+static void Button3_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 3 hier implementieren. */
+}
+
+static void Button4_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 4 hier implementieren. */
+}
+
+static void Button5_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 5 hier implementieren. */
+}
+
+static void Button6_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 6 hier implementieren. */
+}
+
+static void Button7_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 7 hier implementieren. */
+}
+
+static void Button8_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 8 hier implementieren. */
+}
+
+static void Button9_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 9 hier implementieren. */
+}
+
+static void Button10_Action(void)
+{
+  /* TODO: Funktion fuer UI-Knopf 10 hier implementieren. */
+}
 /* USER CODE END 4 */
 
 /**
