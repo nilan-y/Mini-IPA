@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usb_commands.h"
+#include "sensor_app.h"
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -117,7 +119,9 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     uint8_t command;
-    if (USB_Commands_Read(&command) != 0U)
+    CDC_ProcessActivity_FS();
+    SensorApp_Process();
+    if ((SensorApp_IsBusy() == 0U) && (USB_Commands_Read(&command) != 0U))
     {
       ExecuteUsbCommand(command);
     }
@@ -389,8 +393,7 @@ static void ExecuteUsbCommand(uint8_t command)
 
 static void Button1_Action(void)
 {
-  /* TODO: Funktion fuer UI-Knopf 1 hier implementieren. */
-	HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, 1);
+  SensorApp_Measure();
 }
 
 static void Button2_Action(void)

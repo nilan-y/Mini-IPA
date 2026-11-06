@@ -109,7 +109,9 @@ extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
-
+/* Main-loop helpers: keep async TX buffers valid and show USB activity. */
+uint8_t CDC_IsTxBusy_FS(void);
+void CDC_ProcessActivity_FS(void);
 /* USER CODE END EXPORTED_FUNCTIONS */
 
 /**

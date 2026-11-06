@@ -23,6 +23,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "usb_commands.h"
+#include "main.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,7 +95,8 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
-
+static volatile uint32_t activity_tick;
+static volatile uint32_t activity_count;
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -127,7 +129,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length);
 static int8_t CDC_Receive_FS(uint8_t* pbuf, uint32_t *Len);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
-
+static void CDC_NotifyActivity_FS(void);
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
 /**
@@ -261,6 +263,10 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
+  if (*Len != 0U)
+  {
+    CDC_NotifyActivity_FS();
+  }
   USB_Commands_Receive(Buf, *Len);
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
@@ -284,17 +290,56 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
   uint8_t result = USBD_OK;
   /* USER CODE BEGIN 7 */
   USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
+  if ((hcdc == NULL) || (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED))
+  {
+    return USBD_FAIL;
+  }
   if (hcdc->TxState != 0){
     return USBD_BUSY;
   }
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);
   result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+  if ((result == USBD_OK) && (Len != 0U))
+  {
+    CDC_NotifyActivity_FS();
+  }
   /* USER CODE END 7 */
   return result;
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+static void CDC_NotifyActivity_FS(void)
+{
+  activity_tick = HAL_GetTick();
+  ++activity_count;
+  HAL_GPIO_WritePin(LED_USB_GPIO_Port, LED_USB_Pin, GPIO_PIN_SET);
+}
 
+void CDC_ProcessActivity_FS(void)
+{
+  static uint32_t processed_count;
+  static uint8_t led_on;
+  uint32_t count = activity_count;
+
+  if (count != processed_count)
+  {
+    processed_count = count;
+    led_on = 1U;
+    HAL_GPIO_WritePin(LED_USB_GPIO_Port, LED_USB_Pin, GPIO_PIN_SET);
+  }
+  if ((led_on != 0U) && ((uint32_t)(HAL_GetTick() - activity_tick) >= 100U))
+  {
+    HAL_GPIO_WritePin(LED_USB_GPIO_Port, LED_USB_Pin, GPIO_PIN_RESET);
+    led_on = 0U;
+  }
+}
+
+uint8_t CDC_IsTxBusy_FS(void)
+{
+  USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
+  return ((hcdc != NULL) && (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED) &&
+          (hcdc->TxState != 0U)) ? 1U : 0U;
+}
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 /**
