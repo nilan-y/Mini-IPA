@@ -390,11 +390,13 @@ static void ExecuteUsbCommand(uint8_t command)
 static void Button1_Action(void)
 {
   /* TODO: Funktion fuer UI-Knopf 1 hier implementieren. */
+	HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, 1);
 }
 
 static void Button2_Action(void)
 {
   /* TODO: Funktion fuer UI-Knopf 2 hier implementieren. */
+	HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, 0);
 }
 
 static void Button3_Action(void)
