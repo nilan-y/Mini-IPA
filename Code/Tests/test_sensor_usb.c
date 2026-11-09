@@ -20,6 +20,8 @@ static unsigned int offset_calls;
 static uint32_t device_id = VL53L4CD_ID;
 static uint32_t distance_mm = 123U, range_status;
 static unsigned int bus_inits, bus_deinits, sensor_inits, starts, stops, clears;
+static unsigned int transmissions;
+static VL53L4CD_Object_t *active_sensor;
 
 uint32_t HAL_GetTick(void) { return tick; }
 void HAL_Delay(uint32_t delay) { tick += delay; }
@@ -59,13 +61,25 @@ VL53L4CD_Error VL53L4CD_SetOffset(Dev_t s, int16_t offset)
 }
 int32_t VL53L4CD_Start(VL53L4CD_Object_t *s, uint32_t mode)
 {
-  assert(mode == VL53L4CD_MODE_ASYNC_ONESHOT);
+  assert((mode == VL53L4CD_MODE_ASYNC_ONESHOT) ||
+         (mode == VL53L4CD_MODE_ASYNC_CONTINUOUS));
   /* Each sensor reinitialization must restore the correction before ranging. */
   assert(offset_applied != 0U);
   ++starts;
+  active_sensor = s;
+  if (start_status == 0)
+  {
+    s->IsRanging = 1U;
+    s->IsContinuous = (mode == VL53L4CD_MODE_ASYNC_CONTINUOUS);
+  }
   return start_status;
 }
-int32_t VL53L4CD_Stop(VL53L4CD_Object_t *s) { ++stops; return stop_status; }
+int32_t VL53L4CD_Stop(VL53L4CD_Object_t *s)
+{
+  ++stops;
+  if (stop_status == 0) s->IsRanging = 0U;
+  return stop_status;
+}
 VL53L4CD_Error VL53L4CD_ClearInterrupt(Dev_t s) { ++clears; return 0; }
 VL53L4CD_Error VL53L4CD_CheckForDataReady(Dev_t s, uint8_t *value)
 { *value = ready; return io_error; }
@@ -73,6 +87,8 @@ int32_t VL53L4CD_GetDistance(VL53L4CD_Object_t *s, VL53L4CD_Result_t *r)
 {
   r->ZoneResult[0].Distance[0] = distance_mm;
   r->ZoneResult[0].Status[0] = range_status;
+  /* The real ST BSP acknowledges continuous results with ClearInterrupt. */
+  if ((read_status == 0) && s->IsContinuous) ++clears;
   return read_status;
 }
 
@@ -82,7 +98,7 @@ uint8_t USBD_CDC_SetRxBuffer(USBD_HandleTypeDef *d, uint8_t *p)
 { cdc.RxBuffer = p; return USBD_OK; }
 uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef *d) { return USBD_OK; }
 uint8_t USBD_CDC_TransmitPacket(USBD_HandleTypeDef *d)
-{ cdc.TxState = 1U; return USBD_OK; }
+{ ++transmissions; cdc.TxState = 1U; return USBD_OK; }
 
 static void expect_reply(const char *expected)
 {
@@ -91,9 +107,8 @@ static void expect_reply(const char *expected)
   assert(cdc.TxLength == strlen(expected));
   assert(memcmp(cdc.TxBuffer, expected, cdc.TxLength) == 0);
   assert(SensorApp_IsBusy());
-  /* No overwrite or second measurement while USB owns the reply buffer. */
+  /* No overwrite or spontaneous second measurement while USB owns the buffer. */
   unsigned int before = starts;
-  SensorApp_Measure();
   SensorApp_Process();
   assert(starts == before);
   assert(memcmp(cdc.TxBuffer, expected, cdc.TxLength) == 0);
@@ -150,7 +165,7 @@ int main(void)
   SensorApp_Process();
   assert(cdc.TxState == 0U && SensorApp_IsBusy());
   ready = 1;
-  expect_reply("DISTANCE_MM=123\r\n");
+  expect_reply("D: 123mm\r\n");
   assert(stops == 1U && usb_led == GPIO_PIN_SET);
 
   /* A second click gets a new sample and clears the previous ready flag. */
@@ -158,12 +173,12 @@ int main(void)
   unsigned int previous_offsets = offset_calls;
   distance_mm = 456U;
   SensorApp_Measure();
-  expect_reply("DISTANCE_MM=456\r\n");
+  expect_reply("D: 456mm\r\n");
   assert(clears == 2U && sensor_inits == previous_inits && bus_inits == 2U);
   assert(offset_calls == previous_offsets);
   range_status = 4;
   SensorApp_Measure();
-  expect_reply("ERROR TOF RANGE_STATUS=4\r\n");
+  expect_reply("Out of Range=4\r\n");
   range_status = 0;
 
   /* Polling timeout and LED expiry work across HAL tick wraparound. */
@@ -203,7 +218,7 @@ int main(void)
   SensorApp_Process();
   assert(SensorApp_IsBusy() && cdc.TxBuffer == previous_buffer);
   cdc.TxState = 0;
-  expect_reply("DISTANCE_MM=456\r\n");
+  expect_reply("D: 456mm\r\n");
 
   tick = UINT32_MAX - 50U;
   assert(CDC_Transmit_FS(data, 2U) == USBD_OK);
@@ -224,6 +239,125 @@ int main(void)
   tick += 1000U;
   SensorApp_Process();
   assert(!SensorApp_IsBusy());
+  hUsbDeviceFS.pClassData = &cdc;
+  ready = 0U;
+
+  /* Stream starts once, sends successive fresh samples, and keeps ranging. */
+  unsigned int before_starts = starts, before_stops = stops;
+  SensorApp_StartContinuous();
+  assert(active_sensor->IsContinuous && active_sensor->IsRanging);
+  SensorApp_StartContinuous();
+  assert(starts == before_starts + 1U);
+  for (unsigned int i = 0U; i < 3U; ++i)
+  {
+    distance_mm = 100U + i;
+    char expected[32];
+    (void)snprintf(expected, sizeof(expected), "D: %umm\r\n", 100U + i);
+    ready = 1U;
+    SensorApp_Process();
+    assert(cdc.TxState == 1U);
+    assert(memcmp(cdc.TxBuffer, expected, cdc.TxLength) == 0);
+    SensorApp_StartContinuous(); /* Repeated 1 must not restart the sensor. */
+    assert(starts == before_starts + 1U && stops == before_stops);
+    ready = 0U;
+    cdc.TxState = 0U;
+    SensorApp_Process();
+    assert(SensorApp_IsBusy() && cdc.TxState == 0U);
+  }
+  SensorApp_Stop(); /* Command 2 while waiting for a measurement. */
+  assert(!active_sensor->IsRanging && !SensorApp_IsBusy());
+  before_starts = transmissions;
+  ready = 1U;
+  SensorApp_Process();
+  assert(transmissions == before_starts);
+  SensorApp_Stop(); /* Repeated 2 is harmless. */
+
+  /* Stop during accepted USB TX retains the buffer, but stops hardware now. */
+  SensorApp_StartContinuous();
+  SensorApp_Process();
+  assert(cdc.TxState == 1U);
+  uint8_t saved_reply[80];
+  uint32_t saved_length = cdc.TxLength;
+  memcpy(saved_reply, cdc.TxBuffer, saved_length);
+  SensorApp_Stop();
+  assert(!active_sensor->IsRanging);
+  before_starts = transmissions;
+  SensorApp_Process();
+  assert(transmissions == before_starts);
+  assert(memcmp(saved_reply, cdc.TxBuffer, saved_length) == 0);
+  cdc.TxState = 0U;
+  SensorApp_Process();
+  assert(!SensorApp_IsBusy() && transmissions == before_starts);
+
+  /* Stop also cancels a result waiting for the USB endpoint to become free. */
+  cdc.TxState = 1U;
+  SensorApp_StartContinuous();
+  SensorApp_Process();
+  SensorApp_Stop();
+  cdc.TxState = 0U;
+  SensorApp_Process();
+  assert(!SensorApp_IsBusy() && transmissions == before_starts);
+
+  /* Command 3 switches an active stream to exactly one fresh sample. */
+  SensorApp_StartContinuous();
+  SensorApp_Process();
+  assert(cdc.TxState == 1U);
+  memcpy(saved_reply, cdc.TxBuffer, cdc.TxLength);
+  saved_length = cdc.TxLength;
+  SensorApp_Measure();
+  assert(!active_sensor->IsRanging);
+  SensorApp_Process();
+  assert(memcmp(saved_reply, cdc.TxBuffer, saved_length) == 0);
+  ready = 0U;
+  cdc.TxState = 0U;
+  SensorApp_Process();
+  assert(active_sensor->IsRanging && !active_sensor->IsContinuous);
+  ready = 1U;
+  expect_reply("D: 102mm\r\n");
+
+  /* Stop errors disable streaming and are reported once USB is available. */
+  SensorApp_StartContinuous();
+  SensorApp_Process();
+  stop_status = -1;
+  SensorApp_Stop();
+  SensorApp_Process();
+  cdc.TxState = 0U;
+  expect_reply("ERROR TOF STOP\r\n");
+  stop_status = 0;
+
+  /* A sensor timeout terminates the stream; a later 1 can start it again. */
+  ready = 0U;
+  SensorApp_StartContinuous();
+  tick += 500U;
+  expect_reply("ERROR TOF TIMEOUT\r\n");
+  SensorApp_StartContinuous();
+  assert(active_sensor->IsRanging && active_sensor->IsContinuous);
+  SensorApp_Stop();
+  assert(!SensorApp_IsBusy());
+
+  /* Repeated single triggers wait for USB completion and each get one sample. */
+  ready = 0U;
+  SensorApp_Measure();
+  SensorApp_Measure();
+  ready = 1U;
+  SensorApp_Process();
+  assert(cdc.TxState == 1U);
+  before_starts = starts;
+  ready = 0U;
+  cdc.TxState = 0U;
+  SensorApp_Process();
+  assert(starts == before_starts + 1U && !active_sensor->IsContinuous);
+  ready = 1U;
+  expect_reply("D: 102mm\r\n");
+
+  /* Stop cancels queued single triggers as well as the active measurement. */
+  ready = 0U;
+  SensorApp_Measure();
+  SensorApp_Measure();
+  SensorApp_Stop();
+  before_starts = starts;
+  SensorApp_Process();
+  assert(starts == before_starts && !SensorApp_IsBusy());
   puts("Sensor/USB integration tests passed");
   return 0;
 }

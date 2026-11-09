@@ -13,6 +13,11 @@
 
 typedef enum { IDLE, MEASURING, REPLY_PENDING, REPLY_SENDING } SensorAppState;
 static SensorAppState state;
+static uint8_t continuous;
+/* Deferred start after an in-flight USB buffer has been released: 1=single, 2=stream. */
+static uint8_t pending_start;
+static uint8_t pending_single;
+static uint8_t stop_error;
 static VL53L4CD_Object_t sensor;
 static uint8_t bus_registered;
 static uint32_t started_at;
@@ -29,6 +34,19 @@ static void ReplyError(const char *reason)
 {
   (void)snprintf(reply, sizeof(reply), "ERROR TOF %s\r\n", reason);
   ReplyReady();
+}
+
+static void MeasurementError(const char *reason)
+{
+  continuous = 0U;
+  pending_start = 0U;
+  pending_single = 0U;
+  if (sensor.IsRanging != 0U)
+  {
+    (void)VL53L4CD_Stop(&sensor);
+  }
+  sensor.IsInitialized = 0U;
+  ReplyError(reason);
 }
 
 static uint8_t InitSensor(void)
@@ -80,7 +98,7 @@ static uint8_t InitSensor(void)
   return 1U;
 }
 
-void SensorApp_Measure(void)
+static void BeginMeasurement(uint8_t stream)
 {
   if (state != IDLE)
   {
@@ -92,18 +110,103 @@ void SensorApp_Measure(void)
   }
   /* Discard the previous ready flag so each click gets a fresh sample. */
   if ((VL53L4CD_ClearInterrupt(&sensor) != VL53L4CD_ERROR_NONE) ||
-      (VL53L4CD_Start(&sensor, VL53L4CD_MODE_ASYNC_ONESHOT) != VL53L4CD_OK))
+      (VL53L4CD_Start(&sensor, stream ? VL53L4CD_MODE_ASYNC_CONTINUOUS :
+                                      VL53L4CD_MODE_ASYNC_ONESHOT) != VL53L4CD_OK))
   {
-    sensor.IsInitialized = 0U;
-    ReplyError("START");
+    MeasurementError("START");
     return;
   }
+  continuous = stream;
   started_at = HAL_GetTick();
   state = MEASURING;
 }
 
+void SensorApp_Stop(void)
+{
+  continuous = 0U;
+  pending_start = 0U;
+  pending_single = 0U;
+  if ((sensor.IsRanging != 0U) && (VL53L4CD_Stop(&sensor) != VL53L4CD_OK))
+  {
+    sensor.IsInitialized = 0U;
+    stop_error = 1U;
+  }
+  /* Cancel unsent results; an accepted USB transfer must retain its buffer. */
+  if (state != REPLY_SENDING)
+  {
+    state = IDLE;
+  }
+}
+
+void SensorApp_StartContinuous(void)
+{
+  if (continuous != 0U)
+  {
+    return;
+  }
+  pending_single = 0U;
+  if ((state == IDLE) && (stop_error == 0U))
+  {
+    BeginMeasurement(1U);
+  }
+  else
+  {
+    pending_start = 2U;
+  }
+}
+
+void SensorApp_Measure(void)
+{
+  if (continuous != 0U)
+  {
+    /* Command 3 replaces a stream with exactly one fresh measurement. */
+    SensorApp_Stop();
+    pending_start = 1U;
+  }
+  else if ((state == IDLE) && (stop_error == 0U))
+  {
+    BeginMeasurement(0U);
+  }
+  else if (pending_single < 15U)
+  {
+    /* Keep additional single triggers while a measurement/reply is in flight. */
+    ++pending_single;
+  }
+}
+
 void SensorApp_Process(void)
 {
+  if (state == REPLY_SENDING)
+  {
+    if (CDC_IsTxBusy_FS() != 0U)
+    {
+      return;
+    }
+    state = IDLE;
+    if (continuous != 0U)
+    {
+      started_at = HAL_GetTick();
+      state = MEASURING;
+    }
+  }
+  if ((state == IDLE) && (stop_error != 0U))
+  {
+    stop_error = 0U;
+    pending_start = 0U;
+    pending_single = 0U;
+    ReplyError("STOP");
+  }
+  if ((state == IDLE) && (pending_start != 0U))
+  {
+    uint8_t stream = (pending_start == 2U) ? 1U : 0U;
+    pending_start = 0U;
+    BeginMeasurement(stream);
+  }
+  if ((state == IDLE) && (pending_single != 0U))
+  {
+    --pending_single;
+    BeginMeasurement(0U);
+  }
   if (state == MEASURING)
   {
     uint8_t ready = 0U;
@@ -112,18 +215,16 @@ void SensorApp_Process(void)
     /* Use ST's data-ready API so polling does not block the main loop. */
     if (VL53L4CD_CheckForDataReady(&sensor, &ready) != VL53L4CD_ERROR_NONE)
     {
-      (void)VL53L4CD_Stop(&sensor);
-      sensor.IsInitialized = 0U;
-      ReplyError("I2C_READ");
+      MeasurementError("I2C_READ");
     }
     else if (ready != 0U)
     {
       int32_t read_status = VL53L4CD_GetDistance(&sensor, &result);
-      int32_t stop_status = VL53L4CD_Stop(&sensor);
+      /* GetDistance acknowledges each continuous sample in ST's driver. */
+      int32_t stop_status = (continuous != 0U) ? VL53L4CD_OK : VL53L4CD_Stop(&sensor);
       if ((read_status != VL53L4CD_OK) || (stop_status != VL53L4CD_OK))
       {
-        sensor.IsInitialized = 0U;
-        ReplyError("READ_OR_STOP");
+        MeasurementError("READ_OR_STOP");
       }
       else if (result.ZoneResult[0].Status[0] != 0U)
       {
@@ -140,9 +241,7 @@ void SensorApp_Process(void)
     }
     else if ((uint32_t)(HAL_GetTick() - started_at) >= MEASUREMENT_TIMEOUT_MS)
     {
-      (void)VL53L4CD_Stop(&sensor);
-      sensor.IsInitialized = 0U;
-      ReplyError("TIMEOUT");
+      MeasurementError("TIMEOUT");
     }
   }
 
@@ -155,16 +254,13 @@ void SensorApp_Process(void)
     else if ((uint32_t)(HAL_GetTick() - started_at) >= USB_REPLY_TIMEOUT_MS)
     {
       /* Disconnected/not accepting replies: do not block commands forever. */
-      state = IDLE;
+      SensorApp_Stop();
     }
-  }
-  else if ((state == REPLY_SENDING) && (CDC_IsTxBusy_FS() == 0U))
-  {
-    state = IDLE;
   }
 }
 
 uint8_t SensorApp_IsBusy(void)
 {
-  return (state != IDLE) ? 1U : 0U;
+  return ((state != IDLE) || (pending_start != 0U) ||
+          (pending_single != 0U) || (stop_error != 0U)) ? 1U : 0U;
 }

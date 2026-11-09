@@ -120,11 +120,11 @@ int main(void)
     /* USER CODE BEGIN 3 */
     uint8_t command;
     CDC_ProcessActivity_FS();
-    SensorApp_Process();
-    if ((SensorApp_IsBusy() == 0U) && (USB_Commands_Read(&command) != 0U))
+    if (USB_Commands_Read(&command) != 0U)
     {
       ExecuteUsbCommand(command);
     }
+    SensorApp_Process();
   }
   /* USER CODE END 3 */
 }
@@ -393,18 +393,17 @@ static void ExecuteUsbCommand(uint8_t command)
 
 static void Button1_Action(void)
 {
-  SensorApp_Measure();
+  SensorApp_StartContinuous();
 }
 
 static void Button2_Action(void)
 {
-  /* TODO: Funktion fuer UI-Knopf 2 hier implementieren. */
-	HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, 0);
+  SensorApp_Stop();
 }
 
 static void Button3_Action(void)
 {
-  /* TODO: Funktion fuer UI-Knopf 3 hier implementieren. */
+  SensorApp_Measure();
 }
 
 static void Button4_Action(void)
