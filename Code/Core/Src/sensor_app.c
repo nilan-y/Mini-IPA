@@ -8,6 +8,8 @@
 
 #define MEASUREMENT_TIMEOUT_MS 500U
 #define USB_REPLY_TIMEOUT_MS 1000U
+/* Known calibration correction, applied by the sensor (not again in USB data). */
+#define SENSOR_OFFSET_MM ((int16_t)6)
 
 typedef enum { IDLE, MEASURING, REPLY_PENDING, REPLY_SENDING } SensorAppState;
 static SensorAppState state;
@@ -66,6 +68,13 @@ static uint8_t InitSensor(void)
   if (VL53L4CD_Init(&sensor) != VL53L4CD_OK)
   {
     ReplyError("INIT");
+    return 0U;
+  }
+  /* SensorInit/XSHUT resets calibration registers: restore after every init. */
+  if (VL53L4CD_SetOffset(&sensor, SENSOR_OFFSET_MM) != VL53L4CD_ERROR_NONE)
+  {
+    sensor.IsInitialized = 0U;
+    ReplyError("OFFSET");
     return 0U;
   }
   return 1U;

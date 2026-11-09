@@ -36,6 +36,25 @@ CR/LF. Nur Sensorstatus 0 wird als gueltige Distanz ausgegeben. Nach einem
 Initialisierungs- oder Busfehler versucht der naechste Knopfdruck die
 Sensorinitialisierung erneut.
 
+### Fester Kalibrier-Offset
+
+Der bekannte Offset ist in `Core/Src/sensor_app.c` als
+`SENSOR_OFFSET_MM` auf **+6 mm** eingestellt. Nach jeder erfolgreichen
+`VL53L4CD_Init()` wird er mit der vorhandenen ST-Funktion
+`VL53L4CD_SetOffset()` in den Sensor geschrieben. Das geschieht auch nach
+einem Neustart oder einer erneuten Initialisierung nach einem Fehler.
+Der Sensor beruecksichtigt die Korrektur selbst; die USB-Ausgabe addiert
+die 6 mm nicht nochmals. +6 mm bedeutet gemaess ST eine positive
+Distanzkorrektur (z. B. 94 mm unkorrigiert entsprechen etwa 100 mm korrigiert).
+
+Schlaegt das Setzen fehl, wird keine Messung gestartet. Die UI erhaelt
+`ERROR TOF OFFSET`; beim naechsten Knopfdruck wird erneut initialisiert
+und der Offset erneut gesetzt.
+
+Hier wird ein bekannter Kalibrierwert uebernommen. Eine Kalibrierung zum
+Ermitteln eines neuen Offsets (`VL53L4CD_OffsetCalibration()`) benoetigt ein
+Referenzziel in bekanntem Abstand und ist kein automatischer Startschritt.
+
 Die Antwort liegt in einem statischen Puffer, bis die asynchrone USB-Sendung
 fertig ist. Bei belegter Sendeschnittstelle wird erneut versucht zu senden;
 nach 1000 ms ohne Annahme wird die ausstehende Antwort verworfen. Wurde eine

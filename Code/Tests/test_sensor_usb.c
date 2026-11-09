@@ -15,6 +15,8 @@ static uint32_t tick;
 static GPIO_PinState usb_led;
 static int32_t bus_status, init_status, start_status, read_status, stop_status;
 static uint8_t ready, io_error;
+static uint8_t offset_status, offset_applied;
+static unsigned int offset_calls;
 static uint32_t device_id = VL53L4CD_ID;
 static uint32_t distance_mm = 123U, range_status;
 static unsigned int bus_inits, bus_deinits, sensor_inits, starts, stops, clears;
@@ -41,10 +43,25 @@ int32_t VL53L4CD_RegisterBusIO(VL53L4CD_Object_t *s, VL53L4CD_IO_t *io)
 int32_t VL53L4CD_ReadID(VL53L4CD_Object_t *s, uint32_t *id)
 { *id = device_id; return 0; }
 int32_t VL53L4CD_Init(VL53L4CD_Object_t *s)
-{ ++sensor_inits; s->IsInitialized = (init_status == 0); return init_status; }
+{
+  ++sensor_inits;
+  offset_applied = 0U;
+  s->IsInitialized = (init_status == 0);
+  return init_status;
+}
+VL53L4CD_Error VL53L4CD_SetOffset(Dev_t s, int16_t offset)
+{
+  assert(s->IsInitialized != 0U);
+  assert(offset == 6);
+  ++offset_calls;
+  offset_applied = (offset_status == 0U);
+  return offset_status;
+}
 int32_t VL53L4CD_Start(VL53L4CD_Object_t *s, uint32_t mode)
 {
   assert(mode == VL53L4CD_MODE_ASYNC_ONESHOT);
+  /* Each sensor reinitialization must restore the correction before ranging. */
+  assert(offset_applied != 0U);
   ++starts;
   return start_status;
 }
@@ -119,8 +136,15 @@ int main(void)
   init_status = -1;
   SensorApp_Measure();
   expect_reply("ERROR TOF INIT\r\n");
+  assert(offset_calls == 0U);
   init_status = 0;
+  offset_status = 1U;
   SensorApp_Measure();
+  expect_reply("ERROR TOF OFFSET\r\n");
+  assert(starts == 0U && offset_calls == 1U);
+  offset_status = 0U;
+  SensorApp_Measure();
+  assert(offset_calls == 2U);
   assert(starts == 1U && clears == 1U);
   ready = 0;
   SensorApp_Process();
@@ -131,10 +155,12 @@ int main(void)
 
   /* A second click gets a new sample and clears the previous ready flag. */
   unsigned int previous_inits = sensor_inits;
+  unsigned int previous_offsets = offset_calls;
   distance_mm = 456U;
   SensorApp_Measure();
   expect_reply("DISTANCE_MM=456\r\n");
   assert(clears == 2U && sensor_inits == previous_inits && bus_inits == 2U);
+  assert(offset_calls == previous_offsets);
   range_status = 4;
   SensorApp_Measure();
   expect_reply("ERROR TOF RANGE_STATUS=4\r\n");
@@ -153,6 +179,7 @@ int main(void)
 
   SensorApp_Measure();
   io_error = 1;
+  assert(offset_calls == previous_offsets + 1U);
   expect_reply("ERROR TOF I2C_READ\r\n");
   io_error = 0;
   start_status = -1;
