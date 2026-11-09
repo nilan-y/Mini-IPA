@@ -127,13 +127,13 @@ void SensorApp_Process(void)
       }
       else if (result.ZoneResult[0].Status[0] != 0U)
       {
-        (void)snprintf(reply, sizeof(reply), "ERROR TOF RANGE_STATUS=%lu\r\n",
+        (void)snprintf(reply, sizeof(reply), "Out of Range=%lu\r\n",
                        (unsigned long)result.ZoneResult[0].Status[0]);
         ReplyReady();
       }
       else
       {
-        (void)snprintf(reply, sizeof(reply), "DISTANCE_MM=%lu\r\n",
+        (void)snprintf(reply, sizeof(reply), "D: %lumm\r\n",
                        (unsigned long)result.ZoneResult[0].Distance[0]);
         ReplyReady();
       }
