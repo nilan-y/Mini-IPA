@@ -25,6 +25,8 @@
 #include "usb_commands.h"
 #include "sensor_app.h"
 #include "usbd_cdc_if.h"
+#include "oled.h"
+#include "custom_bus.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,7 +41,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+extern I2C_HandleTypeDef hi2c1;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -58,16 +60,7 @@ static void MX_ADC_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 static void ExecuteUsbCommand(uint8_t command);
-static void Button1_Action(void);
-static void Button2_Action(void);
-static void Button3_Action(void);
-static void Button4_Action(void);
-static void Button5_Action(void);
-static void Button6_Action(void);
-static void Button7_Action(void);
-static void Button8_Action(void);
-static void Button9_Action(void);
-static void Button10_Action(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -108,7 +101,22 @@ int main(void)
   MX_TIM1_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
+  // Timer-Takt: 48 MHz / (47 + 1) = 1 MHz
+  __HAL_TIM_SET_PRESCALER(&htim1, 47U);
+  // PWM-Frequenz: 1 MHz / (999 + 1) = 1 kHz
+  __HAL_TIM_SET_AUTORELOAD(&htim1, 999U);
+  // Vergleichswert für 50 % Tastverhältnis
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 200U);
 
+  HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_RESET);
+  /* I2C1 is shared by the OLED (LL) and the VL53L4CD (HAL/BSP). The BSP init is
+     reference counted, so calling it here once keeps the bus alive even if the
+     TOF driver later calls BSP_I2C1_DeInit() on an error path. */
+  if (BSP_I2C1_Init() != BSP_ERROR_NONE)
+  {
+    Error_Handler();
+  }
+  if (OLED_Init() != 0) { /* display not found */ }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -120,7 +128,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
     uint8_t command;
     CDC_ProcessActivity_FS();
-    if (USB_Commands_Read(&command) != 0U)
+    if(USB_Commands_Read(&command) != 0U)
     {
       ExecuteUsbCommand(command);
     }
@@ -259,13 +267,13 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 65;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 65535;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_OC_Init(&htim1) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -275,14 +283,14 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
   sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_OC_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -377,69 +385,25 @@ static void ExecuteUsbCommand(uint8_t command)
 {
   switch (command)
   {
-    case 1U:  Button1_Action();  break;
-    case 2U:  Button2_Action();  break;
-    case 3U:  Button3_Action();  break;
-    case 4U:  Button4_Action();  break;
-    case 5U:  Button5_Action();  break;
-    case 6U:  Button6_Action();  break;
-    case 7U:  Button7_Action();  break;
-    case 8U:  Button8_Action();  break;
-    case 9U:  Button9_Action();  break;
-    case 10U: Button10_Action(); break;
+    case 1U:
+    	SensorApp_StartContinuous();
+    	break;
+    case 2U:
+    	SensorApp_Stop();
+    	break;
+    case 3U:
+    	SensorApp_Measure();
+    	break;
+    case 4U:
+    	HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_3);
+    	break;
+    case 5U:
+    	HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_3);
+    	break;
     default: break;
   }
 }
 
-static void Button1_Action(void)
-{
-  SensorApp_StartContinuous();
-}
-
-static void Button2_Action(void)
-{
-  SensorApp_Stop();
-}
-
-static void Button3_Action(void)
-{
-  SensorApp_Measure();
-}
-
-static void Button4_Action(void)
-{
-  /* TODO: Funktion fuer UI-Knopf 4 hier implementieren. */
-}
-
-static void Button5_Action(void)
-{
-  /* TODO: Funktion fuer UI-Knopf 5 hier implementieren. */
-}
-
-static void Button6_Action(void)
-{
-  /* TODO: Funktion fuer UI-Knopf 6 hier implementieren. */
-}
-
-static void Button7_Action(void)
-{
-  /* TODO: Funktion fuer UI-Knopf 7 hier implementieren. */
-}
-
-static void Button8_Action(void)
-{
-  /* TODO: Funktion fuer UI-Knopf 8 hier implementieren. */
-}
-
-static void Button9_Action(void)
-{
-  /* TODO: Funktion fuer UI-Knopf 9 hier implementieren. */
-}
-
-static void Button10_Action(void)
-{
-  /* TODO: Funktion fuer UI-Knopf 10 hier implementieren. */
-}
 /* USER CODE END 4 */
 
 /**

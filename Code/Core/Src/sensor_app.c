@@ -3,6 +3,7 @@
 #include "custom_bus.h"
 #include "vl53l4cd_api.h"
 #include "usbd_cdc_if.h"
+#include "oled.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -189,6 +190,8 @@ void SensorApp_Process(void)
       state = MEASURING;
     }
   }
+
+
   if ((state == IDLE) && (stop_error != 0U))
   {
     stop_error = 0U;
@@ -196,17 +199,23 @@ void SensorApp_Process(void)
     pending_single = 0U;
     ReplyError("STOP");
   }
+
+
   if ((state == IDLE) && (pending_start != 0U))
   {
     uint8_t stream = (pending_start == 2U) ? 1U : 0U;
     pending_start = 0U;
     BeginMeasurement(stream);
   }
+
+
   if ((state == IDLE) && (pending_single != 0U))
   {
     --pending_single;
     BeginMeasurement(0U);
   }
+
+
   if (state == MEASURING)
   {
     uint8_t ready = 0U;
@@ -245,6 +254,8 @@ void SensorApp_Process(void)
     }
   }
 
+
+
   if (state == REPLY_PENDING)
   {
     if (CDC_Transmit_FS((uint8_t *)reply, (uint16_t)strlen(reply)) == USBD_OK)
@@ -257,6 +268,8 @@ void SensorApp_Process(void)
       SensorApp_Stop();
     }
   }
+
+
 }
 
 uint8_t SensorApp_IsBusy(void)
