@@ -19,6 +19,52 @@ Eine 1 wechselt nach einer noch laufenden Einzelmessung/Antwort in den
 kontinuierlichen Modus und verwirft weitere wartende Einzeltrigger.
 Stoppen im Leerlauf ist ebenfalls erlaubt.
 
+## Leistungswerte mit 2 Hz senden
+
+Befehl 1 aktiviert zusaetzlich zur Distanzmessung die Leistungserfassung.
+`ProcessPowerMeasurements()` laeuft in der Hauptschleife und startet alle
+500 ms einen neuen ADC-DMA-Durchlauf fuer beide Kanaele. Die vorhandene
+Konfiguration mit deaktivierter ADC-Dauerwandlung bleibt erhalten. Nach dem
+Fertig-Callback liest die Hauptschleife das Wertepaar, beendet den DMA-Zugriff
+und berechnet die vorbereiteten Leistungswerte. Befehl 2 stoppt auch diese
+Erfassung. Erneutes Starten nach einem Stopp ist moeglich.
+
+Der Faktor 1000, die Verstaerkungsfaktoren und die Formeln bleiben erhalten.
+Die Konvertierung nach `uint16_t` erfolgt erst nach der gesamten Berechnung,
+damit die Nachkommastellen nicht vor der Skalierung abgeschnitten werden.
+
+Der eigentliche Sendeblock befindet sich in `Core/Src/power_telemetry.c`:
+
+```c
+/* Einmal pro neu berechnetem Wertepaar aufrufen: */
+PowerTelemetry_Update(power_photodiode, power_shunt);
+
+/* In jedem Durchlauf der Hauptschleife ausfuehren: */
+PowerTelemetry_Process();
+```
+
+Die Ausgabe ist `PD: <Ganzzahl>\r\nPS: <Ganzzahl>\r\n`. Der Sender verwendet
+einen dauerhaften Puffer und sendet beide Zeilen zusammen. Bei belegtem USB
+wartet das neueste Wertepaar, ohne den laufenden Distanz- oder Leistungstext
+zu ueberschreiben. Bei laengerer USB-Blockierung werden alte ausstehende
+Leistungswerte durch das neueste Paar ersetzt; 2 Hz ist der Erfassungs- und
+normale Ausgabetakt, keine Garantie bei blockierter Verbindung. Befehl 2
+verwirft noch nicht gesendete Leistungswerte. Ein bereits gestarteter
+USB-Transfer darf zu Ende laufen.
+
+Die UI erkennt die PD-/PS-Zeilen unabhaengig von den Distanzwerten und zeigt
+die bereits skalierten Zahlen unveraendert in den beiden Leistungsfeldern.
+Es wird weder ein `mm`-Suffix verlangt noch die Distanzgrenze von 1100 auf
+Leistungswerte angewandt.
+
+Softwaretests einschliesslich 500-ms-Takt, Start/Stopp/Neustart, belegtem USB,
+Pufferlebensdauer und UI-Zeilenparser:
+
+```sh
+python3 Code/Tests/run_host_tests.py
+python3 Code/Tests/test_ui_power.py
+```
+
 ## Sensor auslesen und USB-Aktivitaet
 
 Knopf 1 ruft `SensorApp_StartContinuous()`, Knopf 2 `SensorApp_Stop()` und

@@ -46,7 +46,11 @@ int main(void)
   expect_empty();
 
   /* Invalid input is ignored as a whole; the next valid line still works. */
-  receive("0\n11\n99\n100\n-1\nabc\n1x\n 2\n99999999999999999\n");
+  /* The current application also accepts two-digit commands above 10. */
+  receive("11\n99\n");
+  expect(11U);
+  expect(99U);
+  receive("0\n100\n-1\nabc\n1x\n 2\n99999999999999999\n");
   const uint8_t binary[] = {0U, '1', '\n', 0xffU, '\n'};
   USB_Commands_Receive(binary, sizeof(binary));
   expect_empty();

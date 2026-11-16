@@ -21,10 +21,12 @@ groups = {
     "commands": ["Core/Src/usb_commands.c", "Tests/test_usb_commands.c"],
     "sensor_usb": ["Core/Src/usb_commands.c", "Core/Src/sensor_app.c",
                    "USB_DEVICE/App/usbd_cdc_if.c", "Tests/test_sensor_usb.c"],
+    "power": ["Core/Src/power_telemetry.c", "Tests/test_power_telemetry.c"],
 }
 with tempfile.TemporaryDirectory(prefix="mini-ipa-tests-") as directory:
     for name, sources in groups.items():
         executable = str(Path(directory) / name)
-        subprocess.run(flags + [str(root / "Code" / p) for p in sources]
-                       + ["-o", executable], check=True)
+        subprocess.run(flags + ["-ffunction-sections", "-fdata-sections"]
+                       + [str(root / "Code" / p) for p in sources]
+                       + ["-Wl,--gc-sections", "-o", executable], check=True)
         subprocess.run([executable], check=True)

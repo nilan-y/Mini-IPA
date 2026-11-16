@@ -788,6 +788,19 @@ class SerialMonitor:
             self._distance_line_buffer = ""
 
         for line in lines:
+            # Power values are already scaled by the firmware; do not apply the
+            # distance unit/range check or rescale them here.
+            power_match = re.fullmatch(
+                r"\s*(PD|PL|PS):\s*(\d+)\s*\r?", line, re.IGNORECASE
+            )
+            if power_match:
+                identifier = power_match.group(1).upper()
+                value = power_match.group(2)
+                if identifier in ("PD", "PL"):
+                    self.laser_power_consumption_var.set(value)
+                else:
+                    self.system_power_consumption_var.set(value)
+                continue
             match = re.fullmatch(
                 r"\s*(D|PL|PS):\s*(\d+(?:\.\d*)?|\.\d+)\s*mm\s*\r?",
                 line,

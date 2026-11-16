@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "usb_commands.h"
 #include "sensor_app.h"
+#include "power_telemetry.h"
 #include "usbd_cdc_if.h"
 #include "oled.h"
 #include "custom_bus.h"
@@ -66,13 +67,12 @@ static void MX_ADC_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 static void ExecuteUsbCommand(uint8_t command);
+static void ProcessPowerMeasurements(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static char reply[80];
-
 uint16_t photodiode;
 uint16_t shunt;
 float voltage_photodiode = 0;
@@ -83,6 +83,8 @@ uint16_t power_shunt = 0;
 uint32_t adc_counter = 0;
 static uint16_t adc_values[2];
 static volatile uint8_t adc_ready = 0U;
+static uint8_t power_measurement_enabled;
+static uint8_t adc_running;
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *adc)
  {
      if (adc->Instance == ADC1)
@@ -161,6 +163,7 @@ int main(void)
     {
       ExecuteUsbCommand(command);
     }
+    ProcessPowerMeasurements();
     SensorApp_Process();
   }
   /* USER CODE END 3 */
@@ -425,48 +428,72 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* Start a fresh two-channel ADC scan every 500 ms while command 1 is active. */
+static void ProcessPowerMeasurements(void)
+{
+    if ((adc_running != 0U) && (adc_ready != 0U))
+    {
+        /* ADC continuous conversion is disabled: the complete pair is stable. */
+        photodiode = adc_values[0];
+        shunt = adc_values[1];
+        adc_ready = 0U;
+        if (HAL_ADC_Stop_DMA(&hadc) == HAL_OK)
+        {
+            adc_running = 0U;
+
+            /* Keep the existing formulas/scaling; convert after the calculation. */
+            voltage_shunt = (float)shunt/1241.2f/ADC_SHUNT_APM;
+            current_shunt = (float)(shunt/1241.2f/ADC_SHUNT_APM)/0.2f;
+            power_photodiode = (uint16_t)((photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000);
+            power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000);
+            PowerTelemetry_Update(power_photodiode, power_shunt);
+        }
+        else
+        {
+            power_measurement_enabled = 0U;
+        }
+    }
+
+    uint32_t now = HAL_GetTick();
+    if ((power_measurement_enabled != 0U) && (adc_running == 0U) &&
+        ((uint32_t)(now - adc_counter) >= 500U))
+    {
+        adc_ready = 0U;
+        if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)adc_values, 2U) == HAL_OK)
+        {
+            adc_running = 1U;
+        }
+        /* Also bound retries when the ADC cannot be started. */
+        adc_counter = now;
+    }
+    PowerTelemetry_Process();
+}
+
 /* Called from the main loop, outside the USB interrupt. */
 static void ExecuteUsbCommand(uint8_t command)
 {
-	static uint8_t lastCommand = 255U;
-	switch (command)
-	{
-		case 1U:
-			if(lastCommand != command)
-			{
-				lastCommand = command;
-				if (HAL_ADC_Start_DMA(&hadc,(uint32_t *)adc_values,2U) != HAL_OK);
-				HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
-			}
-			SensorApp_StartContinuous();
-
-
-			if (adc_ready != 0U)
-			{
-			    adc_ready = 0U;
-
-			    uint16_t photodiode = adc_values[0]; // Kanal 2
-			    uint16_t shunt      = adc_values[1]; // Kanal 3
-			    if((uint32_t)(HAL_GetTick()-adc_counter) >= 500)
-			    {
-
-			    	adc_counter = HAL_GetTick();
-			    	voltage_shunt = (float)shunt/1241.2f/ADC_SHUNT_APM;
-			    	current_shunt = (float)(shunt/1241.2f/ADC_SHUNT_APM)/0.2f;
-
-			    	power_photodiode = (uint16_t)(photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000;
-			    	power_shunt = (uint16_t)voltage_shunt * current_shunt * 1000;
-			    	(void)snprintf(reply,sizeof(reply),"PD: %u\r\nPS: %u\r\n",(unsigned)power_photodiode,(unsigned)power_shunt);
-
-					CDC_Transmit_FS((uint8_t *)reply, (uint16_t)strlen(reply));
-			    }
-
-			}
-			break;
-		case 2U:
-			SensorApp_Stop();
-			HAL_ADC_Stop_DMA(&hadc);
-			break;
+    switch (command)
+    {
+        case 1U:
+            if (power_measurement_enabled == 0U)
+            {
+                power_measurement_enabled = 1U;
+                adc_counter = HAL_GetTick();
+                HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
+            }
+            SensorApp_StartContinuous();
+            break;
+        case 2U:
+            power_measurement_enabled = 0U;
+            if (adc_running != 0U)
+            {
+                (void)HAL_ADC_Stop_DMA(&hadc);
+                adc_running = 0U;
+            }
+            adc_ready = 0U;
+            PowerTelemetry_ClearPending();
+            SensorApp_Stop();
+            break;
 		case 3U:
 			SensorApp_Measure();
 			break;
