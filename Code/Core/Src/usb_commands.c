@@ -32,7 +32,7 @@ void USB_Commands_Receive(const uint8_t *data, uint32_t length)
     if ((byte == '\r') || (byte == '\n'))
     {
       if ((rx_invalid == 0U) && (rx_digits != 0U) &&
-          (rx_value >= 1U) && (rx_value <= 10U))
+          (rx_value >= 1U))
       {
         uint8_t next = (uint8_t)((queue_head + 1U) % COMMAND_QUEUE_SIZE);
         if (next != queue_tail)

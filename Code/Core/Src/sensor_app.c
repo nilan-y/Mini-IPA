@@ -23,7 +23,7 @@ static VL53L4CD_Object_t sensor;
 static uint8_t bus_registered;
 static uint32_t started_at;
 /* USB CDC transmits asynchronously: keep this buffer until TX completes. */
-static char reply[80];
+static char reply[128];
 
 static void ReplyReady(void)
 {

@@ -27,6 +27,7 @@
 #include "usbd_cdc_if.h"
 #include "oled.h"
 #include "custom_bus.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,7 +37,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+// (1/(1/fsys)*ADCcycles)/2 =>
+#define ADC_COUNTER_MAX 0x18870
+#define ADC_SHUNT_APM 	150.0f
+#define ADC_PD_AMP 		4606.0f
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -46,6 +50,7 @@ extern I2C_HandleTypeDef hi2c1;
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc;
+DMA_HandleTypeDef hdma_adc;
 
 TIM_HandleTypeDef htim1;
 
@@ -56,6 +61,7 @@ TIM_HandleTypeDef htim1;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
@@ -65,6 +71,25 @@ static void ExecuteUsbCommand(uint8_t command);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static char reply[80];
+
+uint16_t photodiode;
+uint16_t shunt;
+float voltage_photodiode = 0;
+float voltage_shunt = 0;
+float current_shunt = 0;
+uint16_t power_photodiode = 0;
+uint16_t power_shunt = 0;
+uint32_t adc_counter = 0;
+static uint16_t adc_values[2];
+static volatile uint8_t adc_ready = 0U;
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *adc)
+ {
+     if (adc->Instance == ADC1)
+     {
+         adc_ready = 1U;
+     }
+ }
 
 /* USER CODE END 0 */
 
@@ -97,6 +122,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC_Init();
   MX_TIM1_Init();
   MX_USB_DEVICE_Init();
@@ -108,14 +134,17 @@ int main(void)
   // Vergleichswert für 50 % Tastverhältnis
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 200U);
 
+
   HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_RESET);
   /* I2C1 is shared by the OLED (LL) and the VL53L4CD (HAL/BSP). The BSP init is
      reference counted, so calling it here once keeps the bus alive even if the
      TOF driver later calls BSP_I2C1_DeInit() on an error path. */
+
   if (BSP_I2C1_Init() != BSP_ERROR_NONE)
   {
     Error_Handler();
   }
+
   if (OLED_Init() != 0) { /* display not found */ }
   /* USER CODE END 2 */
 
@@ -313,6 +342,22 @@ static void MX_TIM1_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -383,25 +428,58 @@ static void MX_GPIO_Init(void)
 /* Called from the main loop, outside the USB interrupt. */
 static void ExecuteUsbCommand(uint8_t command)
 {
-  switch (command)
-  {
-    case 1U:
-    	SensorApp_StartContinuous();
-    	break;
-    case 2U:
-    	SensorApp_Stop();
-    	break;
-    case 3U:
-    	SensorApp_Measure();
-    	break;
-    case 4U:
-    	HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_3);
-    	break;
-    case 5U:
-    	HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_3);
-    	break;
-    default: break;
-  }
+	static uint8_t lastCommand = 255U;
+	switch (command)
+	{
+		case 1U:
+			if(lastCommand != command)
+			{
+				lastCommand = command;
+				if (HAL_ADC_Start_DMA(&hadc,(uint32_t *)adc_values,2U) != HAL_OK);
+				HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
+			}
+			SensorApp_StartContinuous();
+
+
+			if (adc_ready != 0U)
+			{
+			    adc_ready = 0U;
+
+			    uint16_t photodiode = adc_values[0]; // Kanal 2
+			    uint16_t shunt      = adc_values[1]; // Kanal 3
+			    if((uint32_t)(HAL_GetTick()-adc_counter) >= 500)
+			    {
+
+			    	adc_counter = HAL_GetTick();
+			    	voltage_shunt = (float)shunt/1241.2f/ADC_SHUNT_APM;
+			    	current_shunt = (float)(shunt/1241.2f/ADC_SHUNT_APM)/0.2f;
+
+			    	power_photodiode = (uint16_t)(photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000;
+			    	power_shunt = (uint16_t)voltage_shunt * current_shunt * 1000;
+			    	(void)snprintf(reply,sizeof(reply),"PD: %u\r\nPS: %u\r\n",(unsigned)power_photodiode,(unsigned)power_shunt);
+
+					CDC_Transmit_FS((uint8_t *)reply, (uint16_t)strlen(reply));
+			    }
+
+			}
+			break;
+		case 2U:
+			SensorApp_Stop();
+			HAL_ADC_Stop_DMA(&hadc);
+			break;
+		case 3U:
+			SensorApp_Measure();
+			break;
+		case 4U:
+			HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_3);
+			break;
+		case 5U:
+			HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_3);
+			break;
+		default:
+			break;
+	}
+
 }
 
 /* USER CODE END 4 */
