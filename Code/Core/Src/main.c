@@ -134,7 +134,7 @@ int main(void)
   // PWM-Frequenz: 1 MHz / (999 + 1) = 1 kHz
   __HAL_TIM_SET_AUTORELOAD(&htim1, 999U);
   // Vergleichswert für 50 % Tastverhältnis
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 200U);
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 999U);
 
 
   HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_RESET);
@@ -157,14 +157,26 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    uint8_t command;
-    CDC_ProcessActivity_FS();
-    if(USB_Commands_Read(&command) != 0U)
-    {
-      ExecuteUsbCommand(command);
-    }
-    ProcessPowerMeasurements();
-    SensorApp_Process();
+		uint8_t command;
+		CDC_ProcessActivity_FS();
+		if(USB_Commands_Read(&command) != 0U)
+		{
+			ExecuteUsbCommand(command);
+		}
+		ProcessPowerMeasurements();
+		SensorApp_Process();
+		if(HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin))
+		{
+			HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(LED_B2_GPIO_Port, LED_B2_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(LED_B3_GPIO_Port, LED_B3_Pin, GPIO_PIN_SET);
+		}
+		else
+		{
+			HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LED_B2_GPIO_Port, LED_B2_Pin, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(LED_B3_GPIO_Port, LED_B3_Pin, GPIO_PIN_RESET);
+		}
   }
   /* USER CODE END 3 */
 }
@@ -442,7 +454,7 @@ static void ProcessPowerMeasurements(void)
             adc_running = 0U;
 
             /* Keep the existing formulas/scaling; convert after the calculation. */
-            voltage_shunt = (float)shunt/1241.2f/ADC_SHUNT_APM;
+            voltage_shunt = (float)5-shunt/1241.2f/ADC_SHUNT_APM;
             current_shunt = (float)(shunt/1241.2f/ADC_SHUNT_APM)/0.2f;
             power_photodiode = (uint16_t)((photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000);
             power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000);
@@ -479,7 +491,6 @@ static void ExecuteUsbCommand(uint8_t command)
             {
                 power_measurement_enabled = 1U;
                 adc_counter = HAL_GetTick();
-                HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
             }
             SensorApp_StartContinuous();
             break;

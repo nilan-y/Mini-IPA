@@ -28,7 +28,7 @@ void PowerTelemetry_Process(void)
   }
   if ((pending != 0U) && (CDC_IsTxBusy_FS() == 0U))
   {
-    int length = snprintf(reply, sizeof(reply), "PD: %u\r\nPS: %u\r\n",
+    int length = snprintf(reply, sizeof(reply), "PL: %u\r\nPS: %u\r\n",
                           (unsigned)latest_photodiode, (unsigned)latest_shunt);
     if ((length > 0) && ((unsigned)length < sizeof(reply)) &&
         (CDC_Transmit_FS((uint8_t *)reply, (uint16_t)length) == USBD_OK))
