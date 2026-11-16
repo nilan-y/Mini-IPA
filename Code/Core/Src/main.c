@@ -165,7 +165,7 @@ int main(void)
 		}
 		ProcessPowerMeasurements();
 		SensorApp_Process();
-		if(HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin))
+		if(HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin) == GPIO_PIN_RESET)
 		{
 			HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(LED_B2_GPIO_Port, LED_B2_Pin, GPIO_PIN_SET);
@@ -509,7 +509,10 @@ static void ExecuteUsbCommand(uint8_t command)
 			SensorApp_Measure();
 			break;
 		case 4U:
+
+			if(HAL_TIMEx_GetChannelNState(&htim1, TIM_CHANNEL_3) == HAL_TIM_CHANNEL_STATE_RESET)
 			HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_3);
+
 			break;
 		case 5U:
 			HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_3);
