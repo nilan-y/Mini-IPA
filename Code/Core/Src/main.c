@@ -78,6 +78,7 @@ uint16_t shunt;
 float voltage_photodiode = 0;
 float voltage_shunt = 0;
 float current_shunt = 0;
+char  oled_buffer[] ={};
 uint16_t power_photodiode = 0;
 uint16_t power_shunt = 0;
 uint32_t adc_counter = 0;
@@ -134,7 +135,7 @@ int main(void)
   // PWM-Frequenz: 1 MHz / (999 + 1) = 1 kHz
   __HAL_TIM_SET_AUTORELOAD(&htim1, 999U);
   // Vergleichswert für 50 % Tastverhältnis
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 999U);
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 200U);
 
 
   HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_RESET);
@@ -165,18 +166,6 @@ int main(void)
 		}
 		ProcessPowerMeasurements();
 		SensorApp_Process();
-		if(HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin) == GPIO_PIN_RESET)
-		{
-			HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
-			HAL_GPIO_WritePin(LED_B2_GPIO_Port, LED_B2_Pin, GPIO_PIN_SET);
-			HAL_GPIO_WritePin(LED_B3_GPIO_Port, LED_B3_Pin, GPIO_PIN_SET);
-		}
-		else
-		{
-			HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(LED_B2_GPIO_Port, LED_B2_Pin, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(LED_B3_GPIO_Port, LED_B3_Pin, GPIO_PIN_RESET);
-		}
   }
   /* USER CODE END 3 */
 }
@@ -459,6 +448,8 @@ static void ProcessPowerMeasurements(void)
             power_photodiode = (uint16_t)((photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000);
             power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000);
             PowerTelemetry_Update(power_photodiode, power_shunt);
+            snprintf(oled_buffer,sizeof(oled_buffer),"Pshunt = %u",(unsigned)power_shunt);
+            OLED_Print(1, 2,&oled_buffer);
         }
         else
         {
@@ -509,10 +500,11 @@ static void ExecuteUsbCommand(uint8_t command)
 			SensorApp_Measure();
 			break;
 		case 4U:
-
-			if(HAL_TIMEx_GetChannelNState(&htim1, TIM_CHANNEL_3) == HAL_TIM_CHANNEL_STATE_RESET)
-			HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_3);
-
+			if(HAL_TIMEx_GetChannelNState(&htim1, TIM_CHANNEL_3) == HAL_TIM_CHANNEL_STATE_READY)
+			{
+				HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_3);
+				HAL_GPIO_WritePin(LED_B1_GPIO_Port, LED_B1_Pin, GPIO_PIN_SET);
+			}
 			break;
 		case 5U:
 			HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_3);

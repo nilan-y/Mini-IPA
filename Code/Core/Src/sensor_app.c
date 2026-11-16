@@ -243,7 +243,7 @@ void SensorApp_Process(void)
       }
       else
       {
-        (void)snprintf(reply, sizeof(reply), "D: %lumm\r\n",
+    	(void)snprintf(reply, sizeof(reply), "D: %lumm\r\n",
                        (unsigned long)result.ZoneResult[0].Distance[0]);
         ReplyReady();
       }
