@@ -2,7 +2,6 @@
 #include "main.h"
 #include "oled.h"
 #include <stdio.h>
-#include <string.h>
 
 static uint8_t available;
 static uint8_t distance_dirty;
@@ -27,13 +26,21 @@ void DisplayApp_Init(uint8_t display_available)
 
 void DisplayApp_SetDistanceError(const char *text)
 {
-  char next[sizeof(distance_text)];
-  (void)snprintf(next, sizeof(next), "%s", text);
-  if (strcmp(next, distance_text) != 0)
+  /* Bounded copy and change detection without another formatting buffer. */
+  for (uint8_t i = 0U; i < sizeof(distance_text) - 1U; ++i)
   {
-    (void)snprintf(distance_text, sizeof(distance_text), "%s", next);
-    distance_dirty = 1U;
+    char next = text[i];
+    if (distance_text[i] != next)
+    {
+      distance_dirty = 1U;
+    }
+    distance_text[i] = next;
+    if (next == '\0')
+    {
+      return;
+    }
   }
+  distance_text[sizeof(distance_text) - 1U] = '\0';
 }
 
 void DisplayApp_SetDistance(uint32_t millimeters)

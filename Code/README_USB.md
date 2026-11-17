@@ -1,5 +1,22 @@
 # USB-Befehle fuer die UI
 
+## Flashbedarf und Build-Konfiguration
+
+Debug und Release verwenden fuer den C-Code die Groessenoptimierung `-Os`.
+Debug enthaelt weiterhin Debug-Informationen, allerdings koennen durch die
+Optimierung Variablen wegfallen und Einzelschritte im Debugger springen.
+Debug-Symbole selbst belegen normalerweise keinen Ziel-Flash.
+
+Nach Aenderungen an `.cproject` das Projekt in CubeIDE aktualisieren und
+`Project > Clean` sowie einen vollstaendigen Build ausfuehren. In den
+Compilerzeilen muss `-Os` erscheinen. Die finale Flashbelegung ist anhand
+dieses ARM-Builds bzw. seiner Map-Datei zu pruefen.
+
+Die Display-Statusfunktion verwendet eine begrenzte Zeichenkopie statt
+zweier `snprintf`-Aufrufe und eines separaten `strcmp`. Anzeige, Entprellung,
+Messbetrieb und USB-Protokoll bleiben erhalten. Die Flash-Grenze im
+Linkerskript wird nicht erhoeht.
+
 In `Core/Src/main.c` ordnet `ExecuteUsbCommand()` jede empfangene Zahl
 `Button1_Action()` bis `Button10_Action()` zu. Alle Aktionen laufen in der
 Hauptschleife, ausserhalb des USB-Interrupts.
