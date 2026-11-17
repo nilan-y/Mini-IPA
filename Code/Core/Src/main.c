@@ -68,7 +68,7 @@ static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 static void ExecuteUsbCommand(uint8_t command);
 static void ProcessPowerMeasurements(void);
-
+//static void ConvertInttoStr(char *buffer,char *praefix, char *suffix, int var, uint8_t significants);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -78,7 +78,7 @@ uint16_t shunt;
 float voltage_photodiode = 0;
 float voltage_shunt = 0;
 float current_shunt = 0;
-char  oled_buffer[] ={};
+const char  oled_buffer[] = {0};
 uint16_t power_photodiode = 0;
 uint16_t power_shunt = 0;
 uint32_t adc_counter = 0;
@@ -443,13 +443,14 @@ static void ProcessPowerMeasurements(void)
             adc_running = 0U;
 
             /* Keep the existing formulas/scaling; convert after the calculation. */
-            voltage_shunt = (float)5-shunt/1241.2f/ADC_SHUNT_APM;
+            voltage_shunt = (float)5.0f-shunt/1241.2f/ADC_SHUNT_APM;
             current_shunt = (float)(shunt/1241.2f/ADC_SHUNT_APM)/0.2f;
-            power_photodiode = (uint16_t)((photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000);
-            power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000);
+            power_photodiode = (uint16_t)((photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000.0f);
+            power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000.0f);
+
             PowerTelemetry_Update(power_photodiode, power_shunt);
-            snprintf(oled_buffer,sizeof(oled_buffer),"Pshunt = %u",(unsigned)power_shunt);
-            OLED_Print(1, 2,&oled_buffer);
+			snprintf(oled_buffer, sizeof(oled_buffer),"Pshunt = %u mW", (unsigned) power_shunt);
+            OLED_Print(1, 2,oled_buffer);
         }
         else
         {
@@ -471,6 +472,39 @@ static void ProcessPowerMeasurements(void)
     }
     PowerTelemetry_Process();
 }
+
+//static void ConvertInttoStr(char *buffer,char *praefix, char *suffix, float var, int significants)
+//{
+////	uint8_t j = 0;
+//////	uint16_t temp = 0;
+////	float power = 1;
+////	for(uint8_t i = 0; i < sizeof(praefix); i++)
+////	{
+////		buffer[j] = praefix[i];
+////		j = i;
+////	}
+////	for(int i = 7; i > 0-significants; i--)
+////	{
+////		j++;
+////		if(i > 0)
+////		{
+////			for(int k = 0; k < i; k++)
+////			{
+////				power *= 10;
+////			}
+////			buffer[j] = (char)var%power;
+////		}
+////		else
+////		{
+////			for(int k = 0; k > i; k--)
+////			{
+////				power *= 0.1;
+////			}
+////		}
+////
+////	}
+//}
+
 
 /* Called from the main loop, outside the USB interrupt. */
 static void ExecuteUsbCommand(uint8_t command)
