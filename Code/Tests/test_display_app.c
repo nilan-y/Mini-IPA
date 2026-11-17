@@ -55,6 +55,20 @@ int main(void)
   DisplayApp_Process();
   assert(strncmp(test_oled_rows[1], "TOF Fehler", 10U) == 0);
 
+  /* Bounded status copying preserves truncation and detects real changes. */
+  tick += 500U;
+  DisplayApp_SetDistanceError("ABCDEFGHIJKL");
+  DisplayApp_Process();
+  assert(strncmp(test_oled_rows[1], "ABCDEFGHIJ", 10U) == 0);
+  writes = test_oled_writes;
+  tick += 500U;
+  DisplayApp_SetDistanceError("ABCDEFGHIJdifferent suffix");
+  DisplayApp_Process();
+  assert(test_oled_writes == writes);
+  DisplayApp_SetDistanceError("X");
+  DisplayApp_Process();
+  assert(strncmp(test_oled_rows[1], "X         ", 10U) == 0);
+
   tick = UINT32_MAX - 100U;
   DisplayApp_Init(1U);
   DisplayApp_Process();

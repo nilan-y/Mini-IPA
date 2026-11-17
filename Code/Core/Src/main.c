@@ -69,9 +69,12 @@ static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 static void ExecuteUsbCommand(uint8_t command);
 static void ProcessPowerMeasurements(void);
+<<<<<<< HEAD
 
 //static void ConvertInttoStr(char *buffer,char *praefix, char *suffix, int var, uint8_t significants);
 
+=======
+>>>>>>> f8ba83b9c3d365d8eb56c1029c2ce56d6f244a0f
 static void ProcessButton(void);
 
 /* USER CODE END PFP */
@@ -83,7 +86,10 @@ uint16_t shunt;
 float voltage_photodiode = 0;
 float voltage_shunt = 0;
 float current_shunt = 0;
+<<<<<<< HEAD
 const char  oled_buffer[] = {0};
+=======
+>>>>>>> f8ba83b9c3d365d8eb56c1029c2ce56d6f244a0f
 uint16_t power_photodiode = 0;
 uint16_t power_shunt = 0;
 uint32_t adc_counter = 0;
@@ -481,8 +487,11 @@ static void ProcessPowerMeasurements(void)
             power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000.0f);
 
             PowerTelemetry_Update(power_photodiode, power_shunt);
+<<<<<<< HEAD
 			snprintf(oled_buffer, sizeof(oled_buffer),"Pshunt = %u mW", (unsigned) power_shunt);
             OLED_Print(1, 2,oled_buffer);
+=======
+>>>>>>> f8ba83b9c3d365d8eb56c1029c2ce56d6f244a0f
             DisplayApp_SetPower(power_photodiode, power_shunt);
         }
         else
