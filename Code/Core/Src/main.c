@@ -25,6 +25,7 @@
 #include "usb_commands.h"
 #include "sensor_app.h"
 #include "power_telemetry.h"
+#include "display_app.h"
 #include "usbd_cdc_if.h"
 #include "oled.h"
 #include "custom_bus.h"
@@ -68,6 +69,7 @@ static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 static void ExecuteUsbCommand(uint8_t command);
 static void ProcessPowerMeasurements(void);
+static void ProcessButton(void);
 
 /* USER CODE END PFP */
 
@@ -78,7 +80,6 @@ uint16_t shunt;
 float voltage_photodiode = 0;
 float voltage_shunt = 0;
 float current_shunt = 0;
-char  oled_buffer[] ={};
 uint16_t power_photodiode = 0;
 uint16_t power_shunt = 0;
 uint32_t adc_counter = 0;
@@ -86,6 +87,7 @@ static uint16_t adc_values[2];
 static volatile uint8_t adc_ready = 0U;
 static uint8_t power_measurement_enabled;
 static uint8_t adc_running;
+static uint8_t power_single_requested;
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *adc)
  {
      if (adc->Instance == ADC1)
@@ -148,7 +150,7 @@ int main(void)
     Error_Handler();
   }
 
-  if (OLED_Init() != 0) { /* display not found */ }
+  DisplayApp_Init((OLED_Init() == 0) ? 1U : 0U);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -160,12 +162,14 @@ int main(void)
     /* USER CODE BEGIN 3 */
 		uint8_t command;
 		CDC_ProcessActivity_FS();
+		ProcessButton();
 		if(USB_Commands_Read(&command) != 0U)
 		{
 			ExecuteUsbCommand(command);
 		}
 		ProcessPowerMeasurements();
 		SensorApp_Process();
+		DisplayApp_Process();
   }
   /* USER CODE END 3 */
 }
@@ -429,6 +433,30 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* BTN has an external pull-up: one falling edge after 30 ms of stable input. */
+static void ProcessButton(void)
+{
+    static GPIO_PinState last_raw = GPIO_PIN_SET;
+    static GPIO_PinState stable = GPIO_PIN_SET;
+    static uint32_t changed_at;
+    GPIO_PinState raw = HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin);
+    uint32_t now = HAL_GetTick();
+
+    if (raw != last_raw)
+    {
+        last_raw = raw;
+        changed_at = now;
+    }
+    if ((raw != stable) && ((uint32_t)(now - changed_at) >= 30U))
+    {
+        stable = raw;
+        if (stable == GPIO_PIN_RESET)
+        {
+            ExecuteUsbCommand(3U);
+        }
+    }
+}
+
 /* Start a fresh two-channel ADC scan every 500 ms while command 1 is active. */
 static void ProcessPowerMeasurements(void)
 {
@@ -448,8 +476,7 @@ static void ProcessPowerMeasurements(void)
             power_photodiode = (uint16_t)((photodiode/1241.2f/ADC_PD_AMP)*(10.77f)*1000);
             power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000);
             PowerTelemetry_Update(power_photodiode, power_shunt);
-            snprintf(oled_buffer,sizeof(oled_buffer),"Pshunt = %u",(unsigned)power_shunt);
-            OLED_Print(1, 2,&oled_buffer);
+            DisplayApp_SetPower(power_photodiode, power_shunt);
         }
         else
         {
@@ -458,9 +485,12 @@ static void ProcessPowerMeasurements(void)
     }
 
     uint32_t now = HAL_GetTick();
-    if ((power_measurement_enabled != 0U) && (adc_running == 0U) &&
-        ((uint32_t)(now - adc_counter) >= 500U))
+    if ((adc_running == 0U) &&
+        ((power_single_requested != 0U) ||
+         ((power_measurement_enabled != 0U) &&
+          ((uint32_t)(now - adc_counter) >= 500U))))
     {
+        power_single_requested = 0U;
         adc_ready = 0U;
         if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)adc_values, 2U) == HAL_OK)
         {
@@ -487,6 +517,7 @@ static void ExecuteUsbCommand(uint8_t command)
             break;
         case 2U:
             power_measurement_enabled = 0U;
+            power_single_requested = 0U;
             if (adc_running != 0U)
             {
                 (void)HAL_ADC_Stop_DMA(&hadc);
@@ -497,6 +528,7 @@ static void ExecuteUsbCommand(uint8_t command)
             SensorApp_Stop();
             break;
 		case 3U:
+			power_single_requested = 1U;
 			SensorApp_Measure();
 			break;
 		case 4U:

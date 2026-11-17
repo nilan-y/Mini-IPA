@@ -19,6 +19,39 @@ Eine 1 wechselt nach einer noch laufenden Einzelmessung/Antwort in den
 kontinuierlichen Modus und verwirft weitere wartende Einzeltrigger.
 Stoppen im Leerlauf ist ebenfalls erlaubt.
 
+## OLED-Anzeige und Taster BTN
+
+`display_app.c` verwendet ausschliesslich die vorhandene OLED-Library:
+`OLED_Print`, `OLED_Printf` und `OLED_Printf2x`. Nach erfolgreichem `OLED_Init`
+erscheint oben "Distanz", darunter der letzte Abstand gross in Millimetern.
+Die Zeilen 4 und 5 zeigen PL und PS in mW mit denselben bereits skalierten
+Ganzzahlwerten wie in der UI. Noch nicht gemessene Werte erscheinen als `--`.
+TOF-Fehler bzw. ungueltige Resultate ersetzen die Distanz durch "TOF Fehler"
+bzw. "Ungueltig"; ein spaeterer gueltiger Wert ersetzt die Meldung wieder.
+
+Die Messfunktionen hinterlegen nur die neuesten Anzeigewerte.
+`DisplayApp_Process()` schreibt geaenderte Felder hoechstens alle 500 ms,
+ausserhalb der Interrupts. OLED und TOF teilen I2C1; dadurch wird nicht bei
+jedem Distanzwert eine laengere Displayuebertragung ausgefuehrt. Feste
+Textbreiten ueberschreiben alte Ziffern ohne komplettes Display-Loeschen.
+Wenn das OLED beim Start nicht antwortet, laeuft der Messbetrieb weiter,
+ohne in jeder Schleife weitere Displayzugriffe zu versuchen.
+
+Der physische BTN-Eingang (PA0) wird mit `HAL_GPIO_ReadPin` abgefragt.
+Die vorhandene Schaltung zieht ihn ueber R2/R3 auf HIGH; SW3 zieht ihn beim
+Druecken auf LOW. `ProcessButton()` akzeptiert einen neuen Pegel erst nach
+30 ms. Nur der Uebergang auf gedrueckt loest Befehl 3 aus. Halten wiederholt
+die Messung nicht; vor der naechsten Ausloesung muss auch das Loslassen
+entprellt sein. Waehrend einer laufenden Distanzmessung wechselt der
+Tastendruck wie USB-Befehl 3 in den Einzelmodus.
+
+Befehl 3 fordert nun auch einmal einen frischen ADC-Durchlauf an, selbst
+wenn die kontinuierliche Leistungserfassung nicht aktiv ist. So werden
+nach einer Einzelmessung sowohl Distanz als auch Leistungsanzeigen erneuert.
+Einzelmessungen senden ihre Ergebnisse weiterhin ueber die vorhandenen
+USB-Wege. Befehl 2 verwirft auch einen noch wartenden ADC-Einzelauftrag.
+Pins, Clock, DMA- und Timerinitialisierung wurden dafuer nicht veraendert.
+
 ## Leistungswerte mit 2 Hz senden
 
 Befehl 1 aktiviert zusaetzlich zur Distanzmessung die Leistungserfassung.
@@ -43,7 +76,7 @@ PowerTelemetry_Update(power_photodiode, power_shunt);
 PowerTelemetry_Process();
 ```
 
-Die Ausgabe ist `PD: <Ganzzahl>\r\nPS: <Ganzzahl>\r\n`. Der Sender verwendet
+Die Ausgabe ist `PL: <Ganzzahl>\r\nPS: <Ganzzahl>\r\n`. Der Sender verwendet
 einen dauerhaften Puffer und sendet beide Zeilen zusammen. Bei belegtem USB
 wartet das neueste Wertepaar, ohne den laufenden Distanz- oder Leistungstext
 zu ueberschreiben. Bei laengerer USB-Blockierung werden alte ausstehende

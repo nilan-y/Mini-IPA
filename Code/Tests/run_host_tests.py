@@ -20,8 +20,12 @@ flags += ["-I" + str(root / "Code" / path) for path in includes]
 groups = {
     "commands": ["Core/Src/usb_commands.c", "Tests/test_usb_commands.c"],
     "sensor_usb": ["Core/Src/usb_commands.c", "Core/Src/sensor_app.c",
+                   "Core/Src/display_app.c", "Tests/oled_mock.c",
                    "USB_DEVICE/App/usbd_cdc_if.c", "Tests/test_sensor_usb.c"],
-    "power": ["Core/Src/power_telemetry.c", "Tests/test_power_telemetry.c"],
+    "power": ["Core/Src/power_telemetry.c", "Core/Src/display_app.c",
+              "Tests/oled_mock.c", "Tests/test_power_telemetry.c"],
+    "display": ["Core/Src/display_app.c", "Tests/oled_mock.c",
+                "Tests/test_display_app.c"],
 }
 with tempfile.TemporaryDirectory(prefix="mini-ipa-tests-") as directory:
     for name, sources in groups.items():
