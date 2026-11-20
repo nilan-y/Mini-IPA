@@ -275,3 +275,17 @@ in Millimetern muss sich entsprechend aendern; LED_USB soll beim Senden und
 Empfangen aufleuchten. STOP (2) muss die laufende Messung beenden. Im
 Single-Modus sendet START/TRIGGER eine 3 und es darf genau eine neue
 Messantwort erscheinen. Deine bestehende UI sendet diese Befehle bereits.
+
+## Erneuter Versuch bei I2C_READ
+
+Schlaegt `VL53L4CD_CheckForDataReady()` fehl, wartet `SensorApp_Process()`
+100 ms ueber `HAL_GetTick()` und wiederholt den Zugriff einmal. Es gibt
+keinen blockierenden Delay und keinen STM32- oder Sensor-Reset. USB, OLED
+und der Stop-Befehl bleiben waehrend der Wartezeit aktiv.
+
+Bei Erfolg wird dieselbe Messung fortgesetzt; fuer das Warten auf einen
+Messwert beginnt das 500-ms-Zeitlimit erneut. Pro Messwert ist nur ein
+solcher Wiederholungsversuch erlaubt. Schlaegt danach ein weiterer
+Data-Ready-Zugriff fehl, wird wie bisher `ERROR TOF I2C_READ` gesendet und
+der Messbetrieb beendet. Ein neuer Messbefehl initialisiert den Sensor
+anschliessend wie bisher neu. Andere Fehlerpfade bleiben unveraendert.

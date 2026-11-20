@@ -7,11 +7,13 @@
 #include <string.h>
 
 #define MEASUREMENT_TIMEOUT_MS 500U
+#define I2C_READ_RETRY_DELAY_MS 100U
 #define USB_REPLY_TIMEOUT_MS 1000U
 /* Known calibration correction, applied by the sensor (not again in USB data). */
 #define SENSOR_OFFSET_MM ((int16_t)6)
 
-typedef enum { IDLE, MEASURING, REPLY_PENDING, REPLY_SENDING } SensorAppState;
+typedef enum { IDLE, MEASURING, READ_RETRY_WAIT, READ_RETRY,
+               REPLY_PENDING, REPLY_SENDING } SensorAppState;
 static SensorAppState state;
 static uint8_t continuous;
 /* Deferred start after an in-flight USB buffer has been released: 1=single, 2=stream. */
@@ -217,7 +219,18 @@ void SensorApp_Process(void)
   }
 
 
-  if (state == MEASURING)
+  /* Retry a failed ready check once, without blocking USB or the main loop. */
+  if (state == READ_RETRY_WAIT)
+  {
+    if ((uint32_t)(HAL_GetTick() - started_at) < I2C_READ_RETRY_DELAY_MS)
+    {
+      return;
+    }
+    started_at = HAL_GetTick();
+    state = READ_RETRY;
+  }
+
+  if ((state == MEASURING) || (state == READ_RETRY))
   {
     uint8_t ready = 0U;
     VL53L4CD_Result_t result = {0};
@@ -225,7 +238,15 @@ void SensorApp_Process(void)
     /* Use ST's data-ready API so polling does not block the main loop. */
     if (VL53L4CD_CheckForDataReady(&sensor, &ready) != VL53L4CD_ERROR_NONE)
     {
-      MeasurementError("I2C_READ");
+      if (state == MEASURING)
+      {
+        started_at = HAL_GetTick();
+        state = READ_RETRY_WAIT;
+      }
+      else
+      {
+        MeasurementError("I2C_READ");
+      }
     }
     else if (ready != 0U)
     {

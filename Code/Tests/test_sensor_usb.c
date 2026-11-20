@@ -20,7 +20,7 @@ static unsigned int offset_calls;
 static uint32_t device_id = VL53L4CD_ID;
 static uint32_t distance_mm = 123U, range_status;
 static unsigned int bus_inits, bus_deinits, sensor_inits, starts, stops, clears;
-static unsigned int transmissions;
+static unsigned int transmissions, ready_checks;
 static VL53L4CD_Object_t *active_sensor;
 
 uint32_t HAL_GetTick(void) { return tick; }
@@ -82,7 +82,7 @@ int32_t VL53L4CD_Stop(VL53L4CD_Object_t *s)
 }
 VL53L4CD_Error VL53L4CD_ClearInterrupt(Dev_t s) { ++clears; return 0; }
 VL53L4CD_Error VL53L4CD_CheckForDataReady(Dev_t s, uint8_t *value)
-{ *value = ready; return io_error; }
+{ ++ready_checks; *value = ready; return io_error; }
 int32_t VL53L4CD_GetDistance(VL53L4CD_Object_t *s, VL53L4CD_Result_t *r)
 {
   r->ZoneResult[0].Distance[0] = distance_mm;
@@ -200,7 +200,18 @@ int main(void)
   SensorApp_Measure();
   io_error = 1;
   assert(offset_calls == previous_offsets + 1U);
+  unsigned int checks_before = ready_checks;
+  unsigned int inits_before_retry = sensor_inits;
+  unsigned int stops_before_retry = stops;
+  SensorApp_Process(); /* First failure only schedules a retry. */
+  assert(ready_checks == checks_before + 1U && cdc.TxState == 0U);
+  tick += 99U;
+  SensorApp_Process();
+  assert(ready_checks == checks_before + 1U && SensorApp_IsBusy());
+  ++tick;
   expect_reply("ERROR TOF I2C_READ\r\n");
+  assert(ready_checks == checks_before + 2U);
+  assert(sensor_inits == inits_before_retry && stops == stops_before_retry + 1U);
   io_error = 0;
   start_status = -1;
   SensorApp_Measure();
@@ -339,6 +350,42 @@ int main(void)
   assert(active_sensor->IsRanging && active_sensor->IsContinuous);
   SensorApp_Stop();
   assert(!SensorApp_IsBusy());
+
+  /* A transient read error recovers after 100 ms, including tick wraparound. */
+  tick = UINT32_MAX - 50U;
+  io_error = 1U;
+  ready = 1U;
+  SensorApp_Measure();
+  inits_before_retry = sensor_inits;
+  SensorApp_Process();
+  checks_before = ready_checks;
+  io_error = 0U;
+  tick += 99U;
+  SensorApp_Process();
+  assert(ready_checks == checks_before && cdc.TxState == 0U);
+  ++tick;
+  expect_reply("D: 102mm\r\n");
+  assert(ready_checks == checks_before + 1U && sensor_inits == inits_before_retry);
+
+  /* Streaming survives the retry; command 2 cancels a pending retry. */
+  io_error = 1U;
+  SensorApp_StartContinuous();
+  SensorApp_Process();
+  tick += 100U;
+  io_error = 0U;
+  SensorApp_Process();
+  assert(cdc.TxState == 1U && active_sensor->IsRanging);
+  cdc.TxState = 0U;
+  ready = 0U;
+  SensorApp_Process();
+  io_error = 1U;
+  SensorApp_Process();
+  checks_before = ready_checks;
+  SensorApp_Stop();
+  tick += 100U;
+  SensorApp_Process();
+  assert(!SensorApp_IsBusy() && ready_checks == checks_before && cdc.TxState == 0U);
+  io_error = 0U;
 
   /* Repeated single triggers wait for USB completion and each get one sample. */
   ready = 0U;
