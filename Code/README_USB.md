@@ -2,20 +2,21 @@
 
 ## Flashbedarf und Build-Konfiguration
 
-Debug und Release verwenden fuer den C-Code die Groessenoptimierung `-Os`.
+Debug verwendet fuer den C-Code `-Os`, Release aktuell `-Oz`.
 Debug enthaelt weiterhin Debug-Informationen, allerdings koennen durch die
 Optimierung Variablen wegfallen und Einzelschritte im Debugger springen.
 Debug-Symbole selbst belegen normalerweise keinen Ziel-Flash.
 
 Nach Aenderungen an `.cproject` das Projekt in CubeIDE aktualisieren und
 `Project > Clean` sowie einen vollstaendigen Build ausfuehren. In den
-Compilerzeilen muss `-Os` erscheinen. Die finale Flashbelegung ist anhand
+Compilerzeilen muss je nach Konfiguration `-Os` bzw. `-Oz` erscheinen.
+Die finale Flashbelegung ist anhand
 dieses ARM-Builds bzw. seiner Map-Datei zu pruefen.
 
-Die Display-Statusfunktion verwendet eine begrenzte Zeichenkopie statt
-zweier `snprintf`-Aufrufe und eines separaten `strcmp`. Anzeige, Entprellung,
-Messbetrieb und USB-Protokoll bleiben erhalten. Die Flash-Grenze im
-Linkerskript wird nicht erhoeht.
+Die Display-Ausgabe verwendet nur normale Schrift und drei direkte
+Print-Aufrufe in main.c. Es gibt keine separate Display-Zustandsverwaltung,
+keine zusaetzlichen Anzeigetextpuffer und keine Textkopien fuer die Anzeige.
+Die Flash-Grenze im Linkerskript wird nicht erhoeht.
 
 In `Core/Src/main.c` ordnet `ExecuteUsbCommand()` jede empfangene Zahl
 `Button1_Action()` bis `Button10_Action()` zu. Alle Aktionen laufen in der
@@ -38,21 +39,31 @@ Stoppen im Leerlauf ist ebenfalls erlaubt.
 
 ## OLED-Anzeige und Taster BTN
 
-`display_app.c` verwendet ausschliesslich die vorhandene OLED-Library:
-`OLED_Print`, `OLED_Printf` und `OLED_Printf2x`. Nach erfolgreichem `OLED_Init`
-erscheint oben "Distanz", darunter der letzte Abstand gross in Millimetern.
-Die Zeilen 4 und 5 zeigen PL und PS in mW mit denselben bereits skalierten
-Ganzzahlwerten wie in der UI. Noch nicht gemessene Werte erscheinen als `--`.
-TOF-Fehler bzw. ungueltige Resultate ersetzen die Distanz durch "TOF Fehler"
-bzw. "Ungueltig"; ein spaeterer gueltiger Wert ersetzt die Meldung wieder.
+Die Anzeige wird direkt von `UpdateDisplay()` in `main.c` aktualisiert:
 
-Die Messfunktionen hinterlegen nur die neuesten Anzeigewerte.
-`DisplayApp_Process()` schreibt geaenderte Felder hoechstens alle 500 ms,
-ausserhalb der Interrupts. OLED und TOF teilen I2C1; dadurch wird nicht bei
-jedem Distanzwert eine laengere Displayuebertragung ausgefuehrt. Feste
-Textbreiten ueberschreiben alte Ziffern ohne komplettes Display-Loeschen.
-Wenn das OLED beim Start nicht antwortet, laeuft der Messbetrieb weiter,
-ohne in jeder Schleife weitere Displayzugriffe zu versuchen.
+```c
+OLED_Printf(0U, 0U, "D: %5u mm", (unsigned)distance);
+OLED_Printf(0U, 2U, "PL: %5u mW", (unsigned)power_photodiode);
+OLED_Printf(0U, 3U, "PS: %5u mW", (unsigned)power_shunt);
+```
+
+`SensorApp_GetLastDistance()` liefert den letzten gueltigen Abstand in mm.
+Vor der ersten Messung bzw. nach einem TOF-Fehler oder ungueltigem Ergebnis
+liefert es `SENSOR_DISTANCE_INVALID`; die Distanzzeile zeigt dann `D:    -- mm`.
+Die Leistungswerte entsprechen den bereits skalierten Ganzzahlen in der UI;
+vor der ersten Leistungsmessung stehen sie auf null.
+
+Alle drei Zeilen werden in normaler Schrift ausgegeben. Die feste Feldbreite
+von fuenf Ziffern ueberschreibt alte Werte vollstaendig. Ein zusaetzliches
+Loeschen des Displays ist nicht erforderlich. Gegenueber der frueheren
+Display-App entfallen der Textcache, Dirty-Flags und Kopien der Leistungswerte.
+Im Sensor kommt nur der letzte Abstand als `uint16_t` hinzu.
+
+`UpdateDisplay()` prueft mit `HAL_GetTick()` einen Abstand von 500 ms.
+Es gibt kein `HAL_Delay()` in der Hauptschleife. OLED und TOF verwenden den
+I2C-Bus nacheinander im Hauptprogramm, nicht in Interrupts. Die Anzeige wird
+nur nach erfolgreichem `OLED_Init()` angesprochen; ein fehlendes Display
+verhindert den Messbetrieb nicht. Die vorhandene OLED-Library bleibt unveraendert.
 
 Der physische BTN-Eingang (PA0) wird mit `HAL_GPIO_ReadPin` abgefragt.
 Die vorhandene Schaltung zieht ihn ueber R2/R3 auf HIGH; SW3 zieht ihn beim

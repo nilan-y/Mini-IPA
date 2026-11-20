@@ -3,7 +3,6 @@
 #include "custom_bus.h"
 #include "vl53l4cd_api.h"
 #include "usbd_cdc_if.h"
-#include "oled.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -22,6 +21,7 @@ static uint8_t stop_error;
 static VL53L4CD_Object_t sensor;
 static uint8_t bus_registered;
 static uint32_t started_at;
+static uint16_t last_distance = SENSOR_DISTANCE_INVALID;
 /* USB CDC transmits asynchronously: keep this buffer until TX completes. */
 static char reply[128];
 
@@ -33,6 +33,7 @@ static void ReplyReady(void)
 
 static void ReplyError(const char *reason)
 {
+  last_distance = SENSOR_DISTANCE_INVALID;
   (void)snprintf(reply, sizeof(reply), "ERROR TOF %s\r\n", reason);
   ReplyReady();
 }
@@ -237,13 +238,14 @@ void SensorApp_Process(void)
       }
       else if (result.ZoneResult[0].Status[0] != 0U)
       {
+        last_distance = SENSOR_DISTANCE_INVALID;
         (void)snprintf(reply, sizeof(reply), "Out of Range=%lu\r\n",
                        (unsigned long)result.ZoneResult[0].Status[0]);
         ReplyReady();
       }
       else
       {
-//    	  OLED_Printf(0U, 1U, "PL: %5u mm        ", (unsigned)result.ZoneResult[0].Distance[0]);
+        last_distance = (uint16_t)result.ZoneResult[0].Distance[0];
     	  (void)snprintf(reply, sizeof(reply), "D: %lumm\r\n",
                        (unsigned long)result.ZoneResult[0].Distance[0]);
         ReplyReady();
@@ -277,4 +279,9 @@ uint8_t SensorApp_IsBusy(void)
 {
   return ((state != IDLE) || (pending_start != 0U) ||
           (pending_single != 0U) || (stop_error != 0U)) ? 1U : 0U;
+}
+
+uint16_t SensorApp_GetLastDistance(void)
+{
+  return last_distance;
 }

@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "oled_mock.h"
 
 /* Keep the host test independent of ARM interrupt instructions. */
 #define __disable_irq() ((void)0)
@@ -19,6 +20,8 @@ static uint16_t usb_length;
 static unsigned int transmissions;
 static unsigned int single_requests;
 static GPIO_PinState button_state = GPIO_PIN_SET;
+static uint16_t test_distance = SENSOR_DISTANCE_INVALID;
+uint16_t SensorApp_GetLastDistance(void) { return test_distance; }
 
 uint32_t HAL_GetTick(void) { return test_tick; }
 HAL_StatusTypeDef HAL_ADC_Start_DMA(ADC_HandleTypeDef *adc, uint32_t *data, uint32_t n)
@@ -201,6 +204,43 @@ int main(void)
   ProcessButton();
   assert(single_requests == 2U);
   ExecuteUsbCommand(2U);
-  puts("Power telemetry and 2 Hz main-loop tests passed");
+  /* Simple OLED output: no writes when missing; three fields at 2 Hz. */
+  unsigned int writes = test_oled_writes;
+  test_tick = 12000U;
+  UpdateDisplay();
+  assert(test_oled_writes == writes);
+  oled_ready = 1U;
+  test_distance = 12345U;
+  power_photodiode = 1000U;
+  power_shunt = 65535U;
+  UpdateDisplay();
+  assert(strcmp(test_oled_rows[0], "D: 12345 mm") == 0);
+  assert(strcmp(test_oled_rows[2], "PL:  1000 mW") == 0);
+  assert(strcmp(test_oled_rows[3], "PS: 65535 mW") == 0);
+  writes = test_oled_writes;
+  test_distance = 7U;
+  power_photodiode = 1U;
+  power_shunt = 2U;
+  test_tick += 499U;
+  UpdateDisplay();
+  assert(test_oled_writes == writes);
+  ++test_tick;
+  UpdateDisplay();
+  assert(strcmp(test_oled_rows[0], "D:     7 mm") == 0);
+  assert(strcmp(test_oled_rows[2], "PL:     1 mW") == 0);
+  test_distance = SENSOR_DISTANCE_INVALID;
+  test_tick += 500U;
+  UpdateDisplay();
+  assert(strcmp(test_oled_rows[0], "D:    -- mm") == 0);
+  test_tick = UINT32_MAX - 100U;
+  UpdateDisplay();
+  writes = test_oled_writes;
+  test_tick += 499U;
+  UpdateDisplay();
+  assert(test_oled_writes == writes);
+  ++test_tick;
+  UpdateDisplay();
+  assert(test_oled_writes == writes + 3U);
+  puts("Power, button and simple OLED main-loop tests passed");
   return 0;
 }

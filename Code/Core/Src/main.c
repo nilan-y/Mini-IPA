@@ -72,6 +72,7 @@ static void ProcessPowerMeasurements(void);
 //static void ConvertInttoStr(char *buffer,char *praefix, char *suffix, int var, uint8_t significants);
 
 static void ProcessButton(void);
+static void UpdateDisplay(void);
 
 /* USER CODE END PFP */
 
@@ -82,7 +83,6 @@ uint16_t shunt;
 float voltage_photodiode = 0;
 float voltage_shunt = 0;
 float current_shunt = 0;
-const char  oled_buffer[] = {0};
 uint16_t power_photodiode = 0;
 uint16_t power_shunt = 0;
 uint32_t adc_counter = 0;
@@ -91,6 +91,7 @@ static volatile uint8_t adc_ready = 0U;
 static uint8_t power_measurement_enabled;
 static uint8_t adc_running;
 static uint8_t power_single_requested;
+static uint8_t oled_ready;
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *adc)
 {
      if (adc->Instance == ADC1)
@@ -153,6 +154,7 @@ int main(void)
     Error_Handler();
   }
 
+  oled_ready = (OLED_Init() == 0) ? 1U : 0U;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -170,10 +172,9 @@ int main(void)
 
 			ExecuteUsbCommand(command);
 		}
-		OLED_Printf(0U,0U,"abcd");
-		HAL_Delay(100);
 		ProcessPowerMeasurements();
 		SensorApp_Process();
+		UpdateDisplay();
   }
   /* USER CODE END 3 */
 }
@@ -437,6 +438,31 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* One place for all display output; no extra display buffers or state machine. */
+static void UpdateDisplay(void)
+{
+    static uint32_t last_update;
+    uint32_t now = HAL_GetTick();
+    if ((oled_ready == 0U) || ((uint32_t)(now - last_update) < 500U))
+    {
+        return;
+    }
+    last_update = now;
+
+    uint16_t distance = SensorApp_GetLastDistance();
+    if (distance == SENSOR_DISTANCE_INVALID)
+    {
+        OLED_Print(0U, 0U, "D:    -- mm");
+    }
+    else
+    {
+        OLED_Printf(0U, 0U, "D: %5u mm", (unsigned)distance);
+    }
+    /* Fixed field widths overwrite old digits without clearing the screen. */
+    OLED_Printf(0U, 2U, "PL: %5u mW", (unsigned)power_photodiode);
+    OLED_Printf(0U, 3U, "PS: %5u mW", (unsigned)power_shunt);
+}
+
 /* BTN has an external pull-up: one falling edge after 30 ms of stable input. */
 static void ProcessButton(void)
 {
@@ -481,8 +507,6 @@ static void ProcessPowerMeasurements(void)
             power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000.0f);
 
             PowerTelemetry_Update(power_photodiode, power_shunt);
-            OLED_Printf(0U, 4U, "PL: %5u mW        ", (unsigned)power_photodiode);
-            OLED_Printf(0U, 5U, "PS: %5u mW        ", (unsigned)power_shunt);
         }
         else
         {

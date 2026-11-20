@@ -119,6 +119,7 @@ static void expect_reply(const char *expected)
 
 int main(void)
 {
+  assert(SensorApp_GetLastDistance() == SENSOR_DISTANCE_INVALID);
   uint8_t data[] = "1\n";
   uint32_t length = 2U;
   uint8_t command;
@@ -166,6 +167,7 @@ int main(void)
   assert(cdc.TxState == 0U && SensorApp_IsBusy());
   ready = 1;
   expect_reply("D: 123mm\r\n");
+  assert(SensorApp_GetLastDistance() == 123U);
   assert(stops == 1U && usb_led == GPIO_PIN_SET);
 
   /* A second click gets a new sample and clears the previous ready flag. */
@@ -174,11 +176,13 @@ int main(void)
   distance_mm = 456U;
   SensorApp_Measure();
   expect_reply("D: 456mm\r\n");
+  assert(SensorApp_GetLastDistance() == 456U);
   assert(clears == 2U && sensor_inits == previous_inits && bus_inits == 2U);
   assert(offset_calls == previous_offsets);
   range_status = 4;
   SensorApp_Measure();
   expect_reply("Out of Range=4\r\n");
+  assert(SensorApp_GetLastDistance() == SENSOR_DISTANCE_INVALID);
   range_status = 0;
 
   /* Polling timeout and LED expiry work across HAL tick wraparound. */
@@ -187,6 +191,7 @@ int main(void)
   SensorApp_Measure();
   tick += 500U;
   expect_reply("ERROR TOF TIMEOUT\r\n");
+  assert(SensorApp_GetLastDistance() == SENSOR_DISTANCE_INVALID);
   CDC_ProcessActivity_FS();
   tick += 100U;
   CDC_ProcessActivity_FS();
