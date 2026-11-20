@@ -25,7 +25,6 @@
 #include "usb_commands.h"
 #include "sensor_app.h"
 #include "power_telemetry.h"
-#include "display_app.h"
 #include "usbd_cdc_if.h"
 #include "oled.h"
 #include "custom_bus.h"
@@ -69,12 +68,9 @@ static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 static void ExecuteUsbCommand(uint8_t command);
 static void ProcessPowerMeasurements(void);
-<<<<<<< HEAD
 
 //static void ConvertInttoStr(char *buffer,char *praefix, char *suffix, int var, uint8_t significants);
 
-=======
->>>>>>> f8ba83b9c3d365d8eb56c1029c2ce56d6f244a0f
 static void ProcessButton(void);
 
 /* USER CODE END PFP */
@@ -86,10 +82,7 @@ uint16_t shunt;
 float voltage_photodiode = 0;
 float voltage_shunt = 0;
 float current_shunt = 0;
-<<<<<<< HEAD
 const char  oled_buffer[] = {0};
-=======
->>>>>>> f8ba83b9c3d365d8eb56c1029c2ce56d6f244a0f
 uint16_t power_photodiode = 0;
 uint16_t power_shunt = 0;
 uint32_t adc_counter = 0;
@@ -99,7 +92,7 @@ static uint8_t power_measurement_enabled;
 static uint8_t adc_running;
 static uint8_t power_single_requested;
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *adc)
- {
+{
      if (adc->Instance == ADC1)
      {
          adc_ready = 1U;
@@ -160,7 +153,6 @@ int main(void)
     Error_Handler();
   }
 
-  DisplayApp_Init((OLED_Init() == 0) ? 1U : 0U);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -175,11 +167,13 @@ int main(void)
 		ProcessButton();
 		if(USB_Commands_Read(&command) != 0U)
 		{
+
 			ExecuteUsbCommand(command);
 		}
+		OLED_Printf(0U,0U,"abcd");
+		HAL_Delay(100);
 		ProcessPowerMeasurements();
 		SensorApp_Process();
-		DisplayApp_Process();
   }
   /* USER CODE END 3 */
 }
@@ -365,13 +359,13 @@ static void MX_TIM1_Init(void)
 static void MX_DMA_Init(void)
 {
 
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
+	/* DMA controller clock enable */
+	__HAL_RCC_DMA1_CLK_ENABLE();
 
-  /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+	/* DMA interrupt init */
+	/* DMA1_Channel1_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
@@ -487,12 +481,8 @@ static void ProcessPowerMeasurements(void)
             power_shunt = (uint16_t)(voltage_shunt * current_shunt * 1000.0f);
 
             PowerTelemetry_Update(power_photodiode, power_shunt);
-<<<<<<< HEAD
-			snprintf(oled_buffer, sizeof(oled_buffer),"Pshunt = %u mW", (unsigned) power_shunt);
-            OLED_Print(1, 2,oled_buffer);
-=======
->>>>>>> f8ba83b9c3d365d8eb56c1029c2ce56d6f244a0f
-            DisplayApp_SetPower(power_photodiode, power_shunt);
+            OLED_Printf(0U, 4U, "PL: %5u mW        ", (unsigned)power_photodiode);
+            OLED_Printf(0U, 5U, "PS: %5u mW        ", (unsigned)power_shunt);
         }
         else
         {

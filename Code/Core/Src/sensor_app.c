@@ -1,5 +1,4 @@
 #include "sensor_app.h"
-#include "display_app.h"
 #include "main.h"
 #include "custom_bus.h"
 #include "vl53l4cd_api.h"
@@ -34,7 +33,6 @@ static void ReplyReady(void)
 
 static void ReplyError(const char *reason)
 {
-  DisplayApp_SetDistanceError("TOF Fehler");
   (void)snprintf(reply, sizeof(reply), "ERROR TOF %s\r\n", reason);
   ReplyReady();
 }
@@ -239,15 +237,14 @@ void SensorApp_Process(void)
       }
       else if (result.ZoneResult[0].Status[0] != 0U)
       {
-        DisplayApp_SetDistanceError("Ungueltig");
         (void)snprintf(reply, sizeof(reply), "Out of Range=%lu\r\n",
                        (unsigned long)result.ZoneResult[0].Status[0]);
         ReplyReady();
       }
       else
       {
-        DisplayApp_SetDistance(result.ZoneResult[0].Distance[0]);
-    	(void)snprintf(reply, sizeof(reply), "D: %lumm\r\n",
+//    	  OLED_Printf(0U, 1U, "PL: %5u mm        ", (unsigned)result.ZoneResult[0].Distance[0]);
+    	  (void)snprintf(reply, sizeof(reply), "D: %lumm\r\n",
                        (unsigned long)result.ZoneResult[0].Distance[0]);
         ReplyReady();
       }
